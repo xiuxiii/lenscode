@@ -1,0 +1,78 @@
+.app-shell {
+  --panel-w: 420px;
+  display: grid;
+  grid-template-rows: var(--topbar-h) 1fr var(--statusbar-h);
+  height: 100%;
+  min-height: 0;
+  background: var(--bg-app);
+}
+
+.app-shell__body {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr) 5px var(--panel-w);
+  min-height: 0;
+  min-width: 0;
+}
+
+.app-shell--sidebar-collapsed .app-shell__body {
+  grid-template-columns: minmax(0, 1fr) 5px var(--panel-w);
+}
+
+.app-shell__editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg-editor);
+}
+
+.app-shell__resizer {
+  position: relative;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 2;
+  margin: 0 -2px;
+  width: 9px;
+  justify-self: center;
+}
+
+.app-shell__resizer::after {
+  content: '';
+  position: absolute;
+  inset: 0 4px;
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+
+.app-shell__resizer:hover::after,
+body.is-resizing .app-shell__resizer::after {
+  background: var(--accent-ring);
+}
+
+/* ─────────────────────────────── Responsive ─────────────────────────────── */
+@media (max-width: 1180px) {
+  .app-shell {
+    --panel-w: 380px;
+  }
+}
+
+@media (max-width: 900px) {
+  .app-shell__body,
+  .app-shell--sidebar-collapsed .app-shell__body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 46%);
+  }
+
+  .file-sidebar {
+    display: none;
+  }
+
+  .app-shell__resizer {
+    display: none;
+  }
+
+  .explanation-panel {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+}
