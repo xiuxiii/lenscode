@@ -1,116 +1,61 @@
-import { MOCK_EXPLANATIONS, type MockExplanationEntry } from '../data/mockExplanations'
-import {
-  ExplanationError,
-  type Explanation,
-  type ExplanationProvider,
-  type ExplanationRequest,
+import type {
+  ExplainOptions,
+  Explanation,
+  ExplanationProvider,
+  ExplanationRequest,
 } from '../types/explanation'
+import { createHttpExplanationProvider } from './explanationProviders/httpProvider'
+import { mockExplanationProvider } from './explanationProviders/mockProvider'
 
 /**
- * Collapse a selection into a comparable key: trim, drop trailing
- * semicolons / commas, collapse internal whitespace, lowercase.
+ * ─────────────────────────────────────────────────────────────────────────
+ *  The one door between the UI and whatever produces explanations.
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ * Everything the app knows about explanations is `explainCode()` and the
+ * `Explanation` type. The UI does not know which provider answers, whether
+ * there is an HTTP call, what endpoint is used, how auth works, which model
+ * runs, or how the prompt is built — and it must stay that way.
+ *
+ * Today:   explainCode() → mock provider (local catalog)
+ * Later:   explainCode() → HTTP provider → your backend route → LLM provider
+ *
+ * To go live, point `VITE_EXPLANATION_API_URL` at your backend route. The API
+ * key belongs to that backend and must never appear in this directory or in
+ * any `VITE_`-prefixed variable, because everything Vite inlines is public.
+ * See the "AI API Integration" section of the README.
  */
-export function normalizeSelection(text: string): string {
-  return text
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/[;,]+$/, '')
-    .trim()
-    .toLowerCase()
-}
 
-/** Candidate keys to try, from most to least specific. */
-function candidateKeys(text: string): string[] {
-  const base = normalizeSelection(text)
-  const keys = new Set<string>([base])
-  // Strip surrounding quotes: "/api/users" → /api/users
-  const unquoted = base.replace(/^(["'`])(.*)\1$/, '$2')
-  keys.add(unquoted)
-  // Strip a leading dot from member access: .json() → json()
-  keys.add(unquoted.replace(/^\./, ''))
-  // Strip trailing call parens: fetch() → fetch
-  keys.add(unquoted.replace(/\(\)$/, ''))
-  // Strip a trailing "{" for lines like "async function x() {"
-  keys.add(unquoted.replace(/\s*\{$/, ''))
-  return [...keys].filter(Boolean)
-}
+/** Same-origin path (or absolute URL) of the backend route, when one exists. */
+const API_URL = import.meta.env.VITE_EXPLANATION_API_URL
 
-function entryMatches(entry: MockExplanationEntry, key: string): boolean {
-  return entry.match.some((m) => m.toLowerCase() === key)
-}
-
-function findEntry(request: ExplanationRequest): MockExplanationEntry | null {
-  const keys = candidateKeys(request.selectedCode)
-  const languageSpecific = MOCK_EXPLANATIONS.filter((e) =>
-    e.languages?.includes(request.language),
-  )
-  const generic = MOCK_EXPLANATIONS.filter((e) => !e.languages)
-  for (const key of keys) {
-    const hit = languageSpecific.find((e) => entryMatches(e, key))
-    if (hit) return hit
+function selectProvider(): ExplanationProvider {
+  if (API_URL) {
+    return createHttpExplanationProvider({ endpoint: API_URL, name: 'API' })
   }
-  for (const key of keys) {
-    const hit = generic.find((e) => entryMatches(e, key))
-    if (hit) return hit
-  }
-  // Last resort: an entry for another language with the exact same key
-  // (e.g. "await" selected while the language is set to Python).
-  for (const key of keys) {
-    const hit = MOCK_EXPLANATIONS.find((e) => entryMatches(e, key))
-    if (hit) return hit
-  }
-  return null
+  return mockExplanationProvider
 }
 
-function wait(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new ExplanationError('aborted', 'Request cancelled'))
-      return
-    }
-    const timer = setTimeout(resolve, ms)
-    signal?.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer)
-        reject(new ExplanationError('aborted', 'Request cancelled'))
-      },
-      { once: true },
-    )
-  })
-}
-
-let idCounter = 0
+const provider = selectProvider()
 
 /**
- * Local, offline provider backed by a curated catalog. Simulates latency so
- * the loading state is exercised, and fails for selections it does not know
- * so the error state is exercised too.
+ * Explain a piece of code.
+ *
+ * @param request  What to explain and the context it sits in.
+ * @param options  `signal` cancels a superseded request.
+ * @returns        A resolved `Explanation`.
+ * @throws         `ExplanationError` with a code the panel can present —
+ *                 never an unhandled rejection.
  */
-export const mockExplanationProvider: ExplanationProvider = {
-  name: 'Local mock',
-  async explain(request, signal) {
-    await wait(550 + Math.random() * 400, signal)
-    const entry = findEntry(request)
-    if (!entry) {
-      throw new ExplanationError(
-        'not_found',
-        'No explanation is available for this selection yet.',
-      )
-    }
-    const { match: _match, languages: _languages, ...body } = entry
-    const explanation: Explanation = {
-      id: `exp_${Date.now()}_${idCounter++}`,
-      selectedCode: request.selectedCode.trim(),
-      language: request.language,
-      ...body,
-    }
-    return explanation
-  },
+export function explainCode(
+  request: ExplanationRequest,
+  options?: ExplainOptions,
+): Promise<Explanation> {
+  return provider.explain(request, options)
 }
 
-/**
- * The provider used by the app. Swap this for an HTTP-backed implementation
- * when the backend exists; nothing else needs to change.
- */
-export const explanationProvider: ExplanationProvider = mockExplanationProvider
+/** Label for the engine currently answering, shown in the status bar. */
+export const explanationEngineName: string = provider.name
+
+/** True while the app is answering from the local catalog rather than an API. */
+export const isUsingMockExplanations: boolean = !API_URL

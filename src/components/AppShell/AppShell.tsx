@@ -9,7 +9,7 @@ import {
 import { DEFAULT_PROJECT_NAME } from '../../data/starterFiles'
 import { useExplanation } from '../../hooks/useExplanation'
 import { useWorkspace } from '../../hooks/useWorkspace'
-import { normalizeSelection } from '../../services/explanationService'
+import { normalizeSelection } from '../../lib/selection'
 import type { Explanation, ExplanationRequest } from '../../types/explanation'
 import type { CodeSelection } from '../../types/workspace'
 import { CodeEditor, type CursorPosition } from '../CodeEditor/CodeEditor'
@@ -43,20 +43,24 @@ export function AppShell() {
   const resizing = useRef(false)
 
   // ─────────────────────────── Explain actions ───────────────────────────
+  // The single request shape the explanation service accepts. `projectContext`
+  // is intentionally left unset until project-level context exists.
   const buildRequest = useCallback(
     (code: string, range: CodeSelection | null): ExplanationRequest => ({
       selectedCode: code,
       language: activeFile.language,
-      fullSource: activeFile.content,
       fileName: activeFile.name,
-      range: range
-        ? {
-            startLine: range.startLine,
-            startColumn: range.startColumn,
-            endLine: range.endLine,
-            endColumn: range.endColumn,
-          }
-        : null,
+      surroundingContext: {
+        fullSource: activeFile.content,
+        range: range
+          ? {
+              startLine: range.startLine,
+              startColumn: range.startColumn,
+              endLine: range.endLine,
+              endColumn: range.endColumn,
+            }
+          : null,
+      },
     }),
     [activeFile],
   )
@@ -78,9 +82,8 @@ export function AppShell() {
       void explain({
         selectedCode: item.selectedCode,
         language: item.language,
-        fullSource: activeFile.content,
         fileName: activeFile.name,
-        range: null,
+        surroundingContext: { fullSource: activeFile.content, range: null },
       })
     },
     [explain, activeFile],
@@ -139,7 +142,7 @@ export function AppShell() {
 
   const highlightRange =
     explanationState.status === 'loaded' || explanationState.status === 'loading'
-      ? (explanationState.request?.range ?? null)
+      ? (explanationState.request?.surroundingContext.range ?? null)
       : null
 
   // The floating "Explain" pill is redundant while the current selection is

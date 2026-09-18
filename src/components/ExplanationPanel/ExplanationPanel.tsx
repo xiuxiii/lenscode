@@ -1,8 +1,12 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import type { ExplanationState } from '../../hooks/useExplanation'
 import { EXPLAIN_SHORTCUT } from '../../lib/shortcuts'
-import { normalizeSelection } from '../../services/explanationService'
-import type { Explanation, RelatedConcept } from '../../types/explanation'
+import { normalizeSelection } from '../../lib/selection'
+import type {
+  Explanation,
+  ExplanationErrorCode,
+  RelatedConcept,
+} from '../../types/explanation'
 import type { CodeSelection, LanguageId } from '../../types/workspace'
 import { getLanguage } from '../../data/languages'
 import { AlertIcon, CursorTextIcon, RetryIcon, SendIcon } from '../icons'
@@ -111,7 +115,30 @@ function LoadingState() {
   )
 }
 
-function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+/**
+ * Every `ExplanationErrorCode` gets a suggestion, so a failure coming from a
+ * real API is presented sensibly instead of always blaming the selection.
+ */
+const ERROR_HINT: Record<ExplanationErrorCode, string> = {
+  not_found: 'Try selecting a smaller piece, like a single keyword or function call.',
+  aborted: 'The request was cancelled. Try again.',
+  unknown: 'Try again in a moment.',
+  network: 'Check your connection, then try again.',
+  timeout: 'The service took too long. Try again, or select a smaller piece.',
+  rate_limited: 'Wait a few seconds before asking for another explanation.',
+  invalid_response: 'The explanation came back malformed. Try again.',
+  server_error: 'The explanation service is having trouble. Try again shortly.',
+}
+
+function ErrorState({
+  message,
+  code,
+  onRetry,
+}: {
+  message: string
+  code: ExplanationErrorCode
+  onRetry: () => void
+}) {
   return (
     <div className="panel-error" role="alert">
       <div className="panel-error__icon">
@@ -120,9 +147,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
       <div className="panel-error__body">
         <p className="panel-error__title">We couldn&rsquo;t generate an explanation.</p>
         <p className="panel-error__message">{message}</p>
-        <p className="panel-error__hint">
-          Try selecting a smaller piece, like a single keyword or function call.
-        </p>
+        <p className="panel-error__hint">{ERROR_HINT[code] ?? ERROR_HINT.unknown}</p>
         <button type="button" className="panel-error__retry" onClick={onRetry}>
           <RetryIcon size={13} />
           Retry
@@ -264,6 +289,7 @@ export function ExplanationPanel({
         {status === 'error' && (
           <ErrorState
             message={error?.message ?? 'Something went wrong.'}
+            code={error?.code ?? 'unknown'}
             onRetry={onRetry}
           />
         )}

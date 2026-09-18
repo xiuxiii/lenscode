@@ -52,7 +52,10 @@ src/
     useExplanation.ts   Reducer-based state machine (idle → loading → loaded | error) with cancellation
     useWorkspace.ts     In-memory files and active file
   services/
-    explanationService.ts   ExplanationProvider contract + the local mock provider
+    explanationService.ts       explainCode() — the only door between UI and AI
+    explanationProviders/
+      mockProvider.ts           Local catalog lookup (active today)
+      httpProvider.ts           Backend client (inactive until configured)
   data/
     mockExplanations.ts     Curated explanation catalog (JS/TS, Python, HTML, CSS, JSON)
     starterFiles.ts         Files that open by default
@@ -62,31 +65,97 @@ src/
     workspace.ts            WorkspaceFile, CodeSelection, LanguageId
 ```
 
-## Swapping in a real backend
+## AI API Integration
 
-Everything the UI renders comes from an `Explanation` object:
+*Written for the next developer picking this up. Nothing in this repository calls an LLM yet; everything below is the seam prepared for one.*
+
+### Where the boundary is
+
+`src/services/explanationService.ts` is the only door between the UI and whatever produces explanations. It exports one function:
+
+```ts
+const explanation = await explainCode(request, { signal })
+```
+
+The UI calls it through `useExplanation()` and nowhere else. It does **not** know which provider answers, whether HTTP is involved, what endpoint is hit, how auth works, which model runs, or how the prompt is built. Keep it that way: everything provider-specific stays behind this module.
+
+```
+Code selection (CodeEditor)
+      ↓
+AppShell.buildRequest() → ExplanationRequest
+      ↓
+useExplanation()  ── idle → loading → loaded | error, with cancellation
+      ↓
+explainCode()                     ← src/services/explanationService.ts
+      ↓
+provider   ── mockProvider (today)  |  httpProvider (once configured)
+      ↓                                      ↓
+local catalog                        POST /api/explain  ← your backend, to build
+                                               ↓
+                                         LLM provider
+      ↓
+Explanation
+      ↓
+ExplanationPanel
+```
+
+### The request
+
+One shape, defined as `ExplanationRequest` in `src/types/explanation.ts` and built in `AppShell.buildRequest()`:
 
 ```ts
 {
-  id, selectedCode, language, concept, kind,
-  simpleExplanation,      // WHAT IS IT?
-  definition,             // TECHNICAL DEFINITION
-  contextualExplanation,  // IN THIS CODE
-  whyItExists,            // WHY IS IT HERE?
-  relatedConcepts,        // RELATED CONCEPTS
+  selectedCode: string          // what the user highlighted
+  language: LanguageId          // 'javascript' | 'typescript' | 'python' | 'html' | 'css' | 'json'
+  surroundingContext: {
+    fullSource: string          // the whole active file
+    range: SourceRange | null   // where the selection sits in it (1-based, Monaco coords)
+  }
+  fileName?: string             // e.g. "fetchUsers.js"
+  projectContext?: ProjectContext   // reserved — nothing populates it yet
 }
 ```
 
-The UI asks for one through the `ExplanationProvider` interface in `src/types/explanation.ts`:
+`projectContext` is a placeholder so project-wide intelligence can be added without changing the shape. There is no AST analysis, no embeddings and no cross-file indexing — do not add them to make this work.
 
-```ts
-interface ExplanationProvider {
-  readonly name: string
-  explain(request: ExplanationRequest, signal?: AbortSignal): Promise<Explanation>
-}
-```
+### The response
 
-`ExplanationRequest` carries the selected code, the language, the full source, the selection range and the file name, which is everything an LLM-backed endpoint needs for a contextual answer. To go live, implement the interface with an HTTP client and change the single `explanationProvider` export in `src/services/explanationService.ts`. The mock provider simulates latency and fails for unknown selections so the loading and error states can be demonstrated.
+`explainCode()` resolves to an `Explanation`. The panel renders these fields and nothing else:
+
+| Canonical name | Field in this codebase | Rendered as |
+| --- | --- | --- |
+| `title` | `concept` | Badge next to the selected code |
+| `whatIsIt` | `simpleExplanation` | **What is it?** |
+| `technicalDefinition` | `definition` | **Technical definition** |
+| `inThisCode` | `contextualExplanation` | **In this code** |
+| `whyItsHere` | `whyItExists` | **Why is it here?** |
+| `relatedConcepts[].name` | `relatedConcepts[].label` | Clickable chip |
+| `relatedConcepts[].explanation` | `relatedConcepts[].hint` | Chip tooltip |
+
+Plus `id`, `selectedCode`, `language` and `kind` (a `ConceptKind` used for the badge label). The internal names are what the components already use, so leave them alone — `httpProvider` accepts **either** vocabulary from the backend and normalizes to the internal one in `parseExplanationResponse()`.
+
+### The current mock
+
+`src/services/explanationProviders/mockProvider.ts` answers from the curated catalog in `src/data/mockExplanations.ts`. It simulates 550–950 ms of latency so the loading state is real, and throws `not_found` for unknown selections so the error state is real. It is selected automatically whenever no API URL is configured, so the app keeps working offline.
+
+### What to replace when connecting a real LLM
+
+1. **Build the backend route** (it does not exist yet — this is a Vite SPA, so add a server or a serverless function, e.g. `/api/explain`). It receives the `ExplanationRequest` JSON, builds the prompt, calls the LLM, and returns a JSON body using either vocabulary from the table above.
+2. **Set `VITE_EXPLANATION_API_URL`** to that route's path. That is the whole client-side switch: `selectProvider()` in `explanationService.ts` picks `httpProvider` the moment the variable is set, and falls back to the mock when it is not.
+3. **Adjust `parseExplanationResponse()`** in `httpProvider.ts` only if your backend's field names differ from both vocabularies. It is also the guard that turns a malformed or truncated model answer into an `invalid_response` error instead of a crash.
+4. **Leave the UI alone.** `AppShell`, `ExplanationPanel` and `useExplanation` should need no changes. If you find yourself editing a component to connect the API, the seam has been crossed in the wrong direction.
+
+### Where the API key lives
+
+**On the server. Never in this repository's `src/`.**
+
+Vite inlines every `VITE_`-prefixed variable into the JavaScript bundle it ships to the browser, so a key in one is published to anyone who opens devtools. `VITE_EXPLANATION_API_URL` is a *location*, not a credential — that is why it is the only client variable.
+
+The LLM credential is read by the backend route, server-side, as something like `LLM_API_KEY`, and never forwarded to the client. See `.env.example`; `.env*` files are gitignored. No key is created or required to run the app today.
+
+### Errors
+
+`explainCode()` rejects with an `ExplanationError` carrying a code: `not_found`, `aborted`, `unknown`, `network`, `timeout`, `rate_limited`, `invalid_response`, `server_error`. `useExplanation` wraps anything unclassified into `unknown`, and the panel has a suggestion for every code, so a future API failure is displayed rather than thrown. Superseded requests are aborted via `AbortSignal` and never reach the panel.
 
 ## Interaction states covered
 
