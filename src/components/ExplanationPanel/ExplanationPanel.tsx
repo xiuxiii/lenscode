@@ -121,7 +121,7 @@ function LoadingState() {
  * real API is presented sensibly instead of always blaming the selection.
  */
 const ERROR_HINT: Record<ExplanationErrorCode, string> = {
-  not_found: 'Try selecting a smaller piece, like a single keyword or function call.',
+  not_configured: 'Put your API key in .env.local (see the README), then restart npm run dev.',
   aborted: 'The request was cancelled. Try again.',
   unknown: 'Try again in a moment.',
   network: 'Check your connection, then try again.',

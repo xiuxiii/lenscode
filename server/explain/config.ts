@@ -21,7 +21,7 @@ export interface LlmConfig {
 
 type Env = Record<string, string | undefined>
 
-/** `null` when no key is configured, which keeps the app on the local mock. */
+/** `null` when no key is configured; the route then answers `not_configured`. */
 export function readLlmConfig(env: Env): LlmConfig | null {
   const apiKey = env.LLM_API_KEY?.trim()
   if (!apiKey) return null

@@ -3,7 +3,7 @@
  * semicolons / commas, collapse internal whitespace, lowercase.
  *
  * Used by the UI to tell whether the live selection is the one already being
- * explained, and by the mock provider to look entries up in its catalog.
+ * explained.
  */
 export function normalizeSelection(text: string): string {
   return text

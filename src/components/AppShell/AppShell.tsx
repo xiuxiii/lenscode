@@ -43,7 +43,6 @@ export function AppShell({ session }: { session: SavedSession }) {
     reset,
     show,
     clearHistory,
-    providerName,
   } = useExplanation(session.history)
 
   // Remember the project and history in this browser across reloads.
@@ -317,7 +316,6 @@ export function AppShell({ session }: { session: SavedSession }) {
         cursor={cursor}
         selection={selection}
         explanationStatus={explanationState.status}
-        providerName={providerName}
       />
 
       {dragDepth > 0 && (

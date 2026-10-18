@@ -9,10 +9,9 @@
  */
 interface ImportMetaEnv {
   /**
-   * Path (or absolute URL) of the backend explanation route, e.g.
-   * `/api/explain`. Unset means the app answers from the local mock catalog.
-   * Set automatically by `server/vitePlugin.ts` when the server has an
-   * `LLM_API_KEY`. This is a location, not a credential.
+   * Optional override for where the browser sends explanation requests.
+   * Defaults to the same-origin `/api/explain`; set it only when the API is
+   * hosted elsewhere. This is a location, not a credential.
    */
   readonly VITE_EXPLANATION_API_URL?: string
 }

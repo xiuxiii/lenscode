@@ -1,5 +1,5 @@
 import { LANGUAGES } from '../../src/data/languages.ts'
-import { parseExplanationResponse } from '../../src/services/explanationProviders/httpProvider.ts'
+import { parseExplanationResponse } from '../../src/services/parseExplanation.ts'
 import {
   ExplanationError,
   type ExplanationRequest,
@@ -132,7 +132,7 @@ export function createExplainHandler({ config, log }: ExplainHandlerOptions) {
     if (!config) {
       return errorResponse(
         new ExplainRouteError(
-          'server_error',
+          'not_configured',
           503,
           'No LLM_API_KEY is configured on the server. Add it to .env.local and restart.',
         ),

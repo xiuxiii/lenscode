@@ -10,7 +10,6 @@ interface StatusBarProps {
   cursor: CursorPosition
   selection: CodeSelection | null
   explanationStatus: ExplanationStatus
-  providerName: string
 }
 
 const STATUS_TEXT: Record<ExplanationStatus, string> = {
@@ -33,16 +32,14 @@ export function StatusBar({
   cursor,
   selection,
   explanationStatus,
-  providerName,
 }: StatusBarProps) {
   return (
     <footer className="status-bar">
       <div className="status-bar__group">
-        <span className="status-bar__item status-bar__item--engine" title="Explanation engine">
+        <span className="status-bar__item status-bar__item--engine">
           <span className={`status-bar__dot status-bar__dot--${explanationStatus}`} />
-          {providerName}
+          {STATUS_TEXT[explanationStatus]}
         </span>
-        <span className="status-bar__item">{STATUS_TEXT[explanationStatus]}</span>
       </div>
       <div className="status-bar__group">
         {selection && selection.text.length > 0 && (

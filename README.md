@@ -2,7 +2,7 @@
 
 **Google Lens for code.** Paste code, highlight any part of it, and get a plain-language explanation of exactly what you are looking at.
 
-A polished, fully interactive frontend with a small LLM-backed explanation route. Explanations come from DeepSeek (or any OpenAI-compatible model) when a server-side API key is configured, and from a built-in mock catalog when it is not. There is no database, auth or user accounts.
+A polished, fully interactive frontend with a small LLM-backed explanation route. Explanations come from DeepSeek (or any OpenAI-compatible model) using a server-side API key. There is no database, auth or user accounts.
 
 ## Core flow
 
@@ -37,7 +37,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-The status bar switches from **Local mock** to **API**. Remove the key to go back to the mock. `.env.local` is gitignored.
+Without a key the app still opens, but **Explain** shows "No LLM_API_KEY is configured" with instructions. `.env.local` is gitignored.
 
 ## Stack
 
@@ -67,18 +67,15 @@ src/
     SelectionActions/   Floating "Explain" pill + shared ExplainButton
     ExplanationPanel/   All panel states (empty, selected, loading, loaded, error) + "Ask about this"
       ExplanationSection, RelatedConcepts
-    StatusBar/          Engine, status, cursor, selection, language, file
+    StatusBar/          Explanation status, cursor, selection, language, file
   hooks/
     useExplanation.ts   Reducer-based state machine (idle → loading → loaded | error) with cancellation
     useWorkspace.ts     The project: name, files (by path), active file, open/add/close
     useSessionPersistence.ts  Autosaves the workspace and history (debounced, flushed on page hide)
   services/
     explanationService.ts       explainCode() — the only door between UI and AI
-    explanationProviders/
-      mockProvider.ts           Local catalog lookup (used when no key is set)
-      httpProvider.ts           Client for /api/explain (used when a key is set)
+    parseExplanation.ts         Validates answers (shared with the server)
   data/
-    mockExplanations.ts     Curated explanation catalog (JS/TS, Python, HTML, CSS, JSON)
     starterFiles.ts         Files that open by default
     languages.ts            Supported languages, colours and one-line beginner descriptions
   lib/
@@ -86,7 +83,7 @@ src/
     importFiles.ts          Reads opened / dropped files and folders, with safety filtering
     sessionStore.ts         Saves / restores the project and history in this browser (IndexedDB)
   types/
-    explanation.ts          Explanation, ExplanationRequest, ExplanationProvider
+    explanation.ts          Explanation, ExplanationRequest, ExplanationError
     workspace.ts            WorkspaceFile, CodeSelection, LanguageId
 ```
 
@@ -138,7 +135,7 @@ To add a language, add an entry to `src/data/languages.ts` (its `id` must be a M
 const explanation = await explainCode(request, { signal })
 ```
 
-The UI calls it through `useExplanation()` and nowhere else. It does **not** know which provider answers, whether HTTP is involved, what endpoint is hit, how auth works, which model runs, or how the prompt is built. Keep it that way: everything provider-specific stays behind this module.
+The UI calls it through `useExplanation()` and nowhere else. It does **not** know which model runs, how auth works or how the prompt is built. Keep it that way: everything provider-specific stays on the server.
 
 ```
 Code selection (CodeEditor)
@@ -149,16 +146,14 @@ useExplanation()  ── idle → loading → loaded | error, with cancellation
       ↓
 explainCode()                     ← src/services/explanationService.ts
       ↓
-provider   ── mockProvider (no key)  |  httpProvider (key set)
-      ↓                                      ↓
-local catalog                        POST /api/explain   ← server/vitePlugin.ts
-                                               ↓
-                                     server/explain/handler.ts
-                                       validate → prompt.ts → llmClient.ts
-                                               ↓
-                                     DeepSeek /chat/completions (JSON mode)
-                                               ↓
-                                     parseExplanationResponse() — rejects bad answers
+POST /api/explain                 ← server/vitePlugin.ts
+      ↓
+server/explain/handler.ts
+  validate → prompt.ts → llmClient.ts
+      ↓
+DeepSeek /chat/completions (JSON mode)
+      ↓
+parseExplanationResponse()        ← rejects bad answers (server, then browser)
       ↓
 Explanation
       ↓
@@ -198,24 +193,20 @@ One shape, defined as `ExplanationRequest` in `src/types/explanation.ts` and bui
 | `relatedConcepts[].name` | `relatedConcepts[].label` | Clickable chip |
 | `relatedConcepts[].explanation` | `relatedConcepts[].hint` | Chip tooltip |
 
-Plus `id`, `selectedCode`, `language` and `kind` (a `ConceptKind` used for the badge label). The internal names are what the components already use, so leave them alone — `httpProvider` accepts **either** vocabulary from the backend and normalizes to the internal one in `parseExplanationResponse()`.
-
-### The current mock
-
-`src/services/explanationProviders/mockProvider.ts` answers from the curated catalog in `src/data/mockExplanations.ts`. It simulates 550–950 ms of latency so the loading state is real, and throws `not_found` for unknown selections so the error state is real. It is used whenever no key is configured, so the app keeps working offline.
+Plus `id`, `selectedCode`, `language` and `kind` (a `ConceptKind` used for the badge label). The internal names are what the components already use, so leave them alone — `parseExplanationResponse()` accepts **either** vocabulary and normalizes to the internal one.
 
 ### The backend route
 
 `server/` runs only in Node. `server/vitePlugin.ts` mounts `POST /api/explain` on the Vite dev and preview servers, so `npm run dev` is the whole backend locally.
 
-- **Switching.** When `LLM_API_KEY` is present, the plugin defines `VITE_EXPLANATION_API_URL=/api/explain` for the client, and `selectProvider()` in `explanationService.ts` picks `httpProvider`. With no key, nothing is defined and the mock is used. An explicit `VITE_EXPLANATION_API_URL` always wins.
+- **No key.** Without `LLM_API_KEY` the route answers `503` with code `not_configured`, and the panel says how to add one.
 - **Prompt.** `server/explain/prompt.ts` sends the selection plus a window of ±40 lines around it (capped at 12,000 characters), with the selected lines marked. When there is no range (a related-concept click), it sends the top of the file and tells the model the selection may be a concept name. The model is asked for the canonical field names, with identifiers in double quotes, which `renderProse()` already turns into inline code chips.
 - **Model call.** `server/explain/llmClient.ts` POSTs to `{LLM_BASE_URL}/chat/completions` with `response_format: { type: 'json_object' }`, a 40 s timeout, and the browser's abort signal, so a superseded selection cancels the upstream call instead of spending tokens.
 - **Validation.** `handler.ts` rejects malformed requests with a 400, extracts the JSON object even if a model wraps it in a fence, and runs the same `parseExplanationResponse()` the browser uses, so a bad answer becomes a clean `invalid_response` error.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| `LLM_API_KEY` | — | Required to leave the mock. Server only. |
+| `LLM_API_KEY` | — | Required. Server only. |
 | `LLM_BASE_URL` | `https://api.deepseek.com` | Any OpenAI-compatible API, e.g. Ollama at `http://localhost:11434/v1`. |
 | `LLM_MODEL` | `deepseek-chat` | If DeepSeek has renamed its models, the panel says so; set the current name here. |
 | `LLM_TIMEOUT_MS` | `40000` | Kept below the browser's 45 s timeout so the server's clearer error wins. |
@@ -245,7 +236,7 @@ Vite inlines every `VITE_`-prefixed variable into the JavaScript bundle it ships
 
 ### Errors
 
-`explainCode()` rejects with an `ExplanationError` carrying a code: `not_found`, `aborted`, `unknown`, `network`, `timeout`, `rate_limited`, `invalid_response`, `server_error`. `useExplanation` wraps anything unclassified into `unknown`, and the panel has a suggestion for every code, so an API failure is displayed rather than thrown. The route reports failures as `{ error: { code, message } }`, and `httpProvider` shows that message. Superseded requests are aborted via `AbortSignal` and never reach the panel.
+`explainCode()` rejects with an `ExplanationError` carrying a code: `not_configured`, `aborted`, `unknown`, `network`, `timeout`, `rate_limited`, `invalid_response`, `server_error`. `useExplanation` wraps anything unclassified into `unknown`, and the panel has a suggestion for every code, so an API failure is displayed rather than thrown. The route reports failures as `{ error: { code, message } }`, and `explainCode()` shows that message. Superseded requests are aborted via `AbortSignal` and never reach the panel.
 
 ## Interaction states covered
 
