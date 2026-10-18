@@ -1,4 +1,4 @@
-import type { LanguageId } from './workspace'
+import type { LanguageId } from './workspace.ts'
 
 /**
  * A short label describing what kind of syntax the selection is.

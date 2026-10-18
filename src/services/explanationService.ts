@@ -17,13 +17,14 @@ import { mockExplanationProvider } from './explanationProviders/mockProvider'
  * there is an HTTP call, what endpoint is used, how auth works, which model
  * runs, or how the prompt is built — and it must stay that way.
  *
- * Today:   explainCode() → mock provider (local catalog)
- * Later:   explainCode() → HTTP provider → your backend route → LLM provider
+ * No key:   explainCode() → mock provider (local catalog)
+ * Key set:  explainCode() → HTTP provider → /api/explain (server/) → LLM
  *
- * To go live, point `VITE_EXPLANATION_API_URL` at your backend route. The API
- * key belongs to that backend and must never appear in this directory or in
- * any `VITE_`-prefixed variable, because everything Vite inlines is public.
- * See the "AI API Integration" section of the README.
+ * Which one runs is decided by `VITE_EXPLANATION_API_URL`, which
+ * `server/vitePlugin.ts` sets to `/api/explain` when the server has an
+ * `LLM_API_KEY`. The key itself stays on the server and must never appear in
+ * this directory or in any `VITE_`-prefixed variable, because everything Vite
+ * inlines is public. See the "AI API Integration" section of the README.
  */
 
 /** Same-origin path (or absolute URL) of the backend route, when one exists. */

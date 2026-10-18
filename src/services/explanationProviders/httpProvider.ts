@@ -2,33 +2,36 @@ import {
   ExplanationError,
   type ConceptKind,
   type Explanation,
+  type ExplanationErrorCode,
   type ExplanationProvider,
   type ExplanationRequest,
   type RelatedConcept,
-} from '../../types/explanation'
+} from '../../types/explanation.ts'
 
 /**
- * Talks to a backend route that this repository does not contain yet.
+ * Browser half of the API path. Talks to the backend route in
+ * `server/explain/handler.ts`.
  *
  * It is deliberately provider-agnostic: there is no model name, no prompt, no
  * vendor SDK and no API key in this file, because none of those belong in
  * code that ships to the browser. All it does is POST the
  * `ExplanationRequest` to a same-origin route and validate what comes back.
  *
- *   browser → this file → POST {endpoint} → your backend → LLM provider
+ *   browser → this file → POST /api/explain → server/explain → LLM provider
  *
- * It is inactive until `VITE_EXPLANATION_API_URL` is set (see
- * `src/services/explanationService.ts` and `.env.example`). That variable is
- * a path, never a secret — the key lives on the server.
+ * It is active whenever `VITE_EXPLANATION_API_URL` is set, which
+ * `server/vitePlugin.ts` does automatically when the server has an
+ * `LLM_API_KEY`. That variable is a path, never a secret.
  *
- * The backend is expected to answer 200 with a JSON body using either the
- * canonical section names or this app's internal field names:
+ * The backend answers 200 with a JSON body using either the canonical
+ * section names or this app's internal field names:
  *
  *   { title, whatIsIt, technicalDefinition, inThisCode, whyItsHere,
  *     relatedConcepts: [{ name, explanation }] }
  */
 
-const DEFAULT_TIMEOUT_MS = 30_000
+/** Slightly longer than the server's own LLM timeout, so the server's clearer error wins. */
+const DEFAULT_TIMEOUT_MS = 45_000
 
 const CONCEPT_KINDS: ConceptKind[] = [
   'keyword',
@@ -127,11 +130,38 @@ export function parseExplanationResponse(
   }
 }
 
+const ERROR_CODES = new Set<ExplanationErrorCode>([
+  'not_found',
+  'aborted',
+  'unknown',
+  'network',
+  'timeout',
+  'rate_limited',
+  'invalid_response',
+  'server_error',
+])
+
+/**
+ * The backend reports failures as `{ error: { code, message } }`. Prefer its
+ * wording (e.g. "the API key was rejected") over a generic status message.
+ */
+async function errorFromBody(response: Response): Promise<ExplanationError | null> {
+  try {
+    const body = (await response.json()) as { error?: { code?: unknown; message?: unknown } }
+    const message = str(body?.error?.message)
+    if (!message) return null
+    const code = body.error?.code as ExplanationErrorCode
+    return new ExplanationError(ERROR_CODES.has(code) ? code : 'unknown', message)
+  } catch {
+    return null
+  }
+}
+
 function errorForStatus(status: number): ExplanationError {
   if (status === 404) {
     return new ExplanationError(
-      'not_found',
-      'No explanation is available for this selection yet.',
+      'server_error',
+      'The explanation API route was not found. Is the backend running?',
     )
   }
   if (status === 429) {
@@ -172,7 +202,9 @@ export function createHttpExplanationProvider(
           body: JSON.stringify(request),
           signal: controller.signal,
         })
-        if (!response.ok) throw errorForStatus(response.status)
+        if (!response.ok) {
+          throw (await errorFromBody(response)) ?? errorForStatus(response.status)
+        }
 
         let body: unknown
         try {
