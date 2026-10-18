@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
-import { getLanguage } from '../../data/languages'
 import type { WorkspaceFile } from '../../types/workspace'
-import { ChevronRightIcon, FolderIcon } from '../icons'
+import { ChevronRightIcon, FileIcon, FolderIcon } from '../icons'
 
 interface FolderNode {
   kind: 'folder'
@@ -54,7 +53,9 @@ function buildTree(files: WorkspaceFile[]): TreeNode[] {
   return root.children
 }
 
-const INDENT = 12
+/** Per level: the chevron (16) plus its gap (4), so a child's icon sits under its folder's icon. */
+const INDENT = 20
+const ROW_PADDING = 8
 
 interface FileTreeProps {
   files: WorkspaceFile[]
@@ -76,51 +77,47 @@ export function FileTree({ files, activeFile, onSelectFile }: FileTreeProps) {
 
   const render = (nodes: TreeNode[], depth: number) =>
     nodes.map((node) => {
-      const indent = { paddingLeft: 6 + depth * INDENT }
+      const indent = { paddingLeft: ROW_PADDING + depth * INDENT }
       if (node.kind === 'folder') {
         const open = isOpen(node)
         return (
           <li key={`d:${node.path}`}>
             <button
               type="button"
-              className="file-list__item file-list__item--folder"
+              className="file-tree__row"
               style={indent}
               onClick={() => toggle(node)}
               aria-expanded={open}
               title={node.path}
             >
               <ChevronRightIcon
-                size={11}
-                className={`file-list__chevron${open ? ' file-list__chevron--open' : ''}`}
+                className={`file-tree__chevron${open ? ' file-tree__chevron--open' : ''}`}
               />
-              <FolderIcon size={13} className="file-list__folder-icon" />
-              <span className="file-list__name">{node.name}</span>
+              <FolderIcon className="file-tree__icon" />
+              <span className="file-tree__name">{node.name}</span>
             </button>
-            {open && <ul className="file-list">{render(node.children, depth + 1)}</ul>}
+            {open && <ul className="file-tree">{render(node.children, depth + 1)}</ul>}
           </li>
         )
       }
       const { file } = node
-      const lang = getLanguage(file.language)
       const active = file.id === activeFile.id
       return (
         <li key={file.id}>
           <button
             type="button"
-            className={`file-list__item${active ? ' file-list__item--active' : ''}`}
+            className={`file-tree__row${active ? ' file-tree__row--active' : ''}`}
             style={indent}
             onClick={() => onSelectFile(file.id)}
             aria-current={active ? 'true' : undefined}
             title={file.path}
           >
-            <span className="file-list__tag" style={{ color: lang.color }} title={lang.label}>
-              {lang.tag}
-            </span>
-            <span className="file-list__name">{file.name}</span>
+            <FileIcon className="file-tree__icon" />
+            <span className="file-tree__name">{file.name}</span>
           </button>
         </li>
       )
     })
 
-  return <ul className="file-list">{render(tree, 0)}</ul>
+  return <ul className="file-tree">{render(tree, 0)}</ul>
 }

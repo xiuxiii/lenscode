@@ -1,31 +1,15 @@
 .top-bar {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  display: flex;
   align-items: center;
-  height: var(--topbar-h);
+  gap: 4px;
+  min-width: 0;
+  height: var(--h-topbar);
   padding: 0 12px;
   border-bottom: 1px solid var(--border);
-  background: var(--bg-surface);
+  background: var(--bg);
 }
 
-.top-bar__left,
-.top-bar__right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.top-bar__right {
-  justify-content: flex-end;
-}
-
-.top-bar__center {
-  display: flex;
-  justify-content: center;
-}
-
-.top-bar__sidebar-toggle.is-active {
+.top-bar__toggle--on {
   color: var(--text);
 }
 
@@ -33,64 +17,38 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 6px 4px 4px;
+  height: var(--h-control);
+  padding: 0 8px;
   border-radius: var(--radius-sm);
   color: var(--text);
   text-decoration: none;
+  transition: background-color 120ms ease-out;
 }
 
 .top-bar__brand:hover {
-  background: var(--bg-hover);
+  background: var(--bg-raised);
 }
 
 .top-bar__name {
-  font-size: 13.5px;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
   font-weight: 600;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.01em;
+}
+
+.top-bar__separator {
+  color: var(--text-3);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
 }
 
 .top-bar__project {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: var(--radius-sm);
-  color: var(--text-2);
-  font-size: 12.5px;
-  font-weight: 500;
-  transition: background-color 120ms ease, color 120ms ease;
-}
-
-.top-bar__project:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-
-.top-bar__project svg {
-  color: var(--text-3);
-}
-
-.top-bar__project-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--success);
-  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.12);
-}
-
-.top-bar__hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-right: 6px;
-  color: var(--text-3);
-  font-size: 12px;
+  min-width: 0;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-@media (max-width: 1000px) {
-  .top-bar__hint {
-    display: none;
-  }
+  color: var(--text-2);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
 }

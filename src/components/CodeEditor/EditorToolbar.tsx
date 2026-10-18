@@ -1,51 +1,40 @@
-import type { CodeSelection, WorkspaceFile } from '../../types/workspace'
-import { FileIcon } from '../icons'
-import { LanguageBadge } from '../LanguageBadge/LanguageBadge'
-import { ExplainButton } from '../SelectionActions/SelectionActions'
+import { getLanguage } from '../../data/languages'
+import { EXPLAIN_SHORTCUT } from '../../lib/shortcuts'
+import type { WorkspaceFile } from '../../types/workspace'
+import { FileIcon, SparkleIcon } from '../icons'
 
 interface EditorToolbarProps {
   file: WorkspaceFile
-  selection: CodeSelection | null
+  /** True when there is a non-empty selection to explain. */
+  canExplain: boolean
   onExplain: () => void
 }
 
-function previewSelection(text: string): string {
-  const oneLine = text.replace(/\s+/g, ' ').trim()
-  return oneLine.length > 40 ? `${oneLine.slice(0, 40)}…` : oneLine
-}
-
-export function EditorToolbar({
-  file,
-  selection,
-  onExplain,
-}: EditorToolbarProps) {
-  const hasSelection = Boolean(selection?.text.trim())
+/** The editor's tab bar: which file, which language, and Explain. */
+export function EditorToolbar({ file, canExplain, onExplain }: EditorToolbarProps) {
+  const language = getLanguage(file.language)
   return (
     <div className="editor-toolbar">
       <span className="editor-toolbar__file" title={file.path}>
-        <FileIcon size={14} />
+        <FileIcon />
         <span className="editor-toolbar__file-name">{file.path}</span>
       </span>
-      <span className="editor-toolbar__spacer" />
-      {hasSelection && selection ? (
-        <span className="editor-toolbar__hint">
-          Selected
-          <code className="inline-code">{previewSelection(selection.text)}</code>
-        </span>
-      ) : (
-        <span className="editor-toolbar__hint">
-          {file.language === 'plaintext'
-            ? 'Paste or type code, then highlight any part of it'
-            : 'Highlight any part of the code to inspect it'}
-        </span>
-      )}
-      <LanguageBadge language={file.language} />
-      <ExplainButton
+      <span
+        className="editor-toolbar__language"
+        title={`${language.description} (Detected automatically from the code.)`}
+      >
+        {language.label}
+      </span>
+      <button
+        type="button"
+        className="btn btn--secondary editor-toolbar__explain"
         onClick={onExplain}
-        disabled={!hasSelection}
-        showShortcut
-        title={hasSelection ? 'Explain the selected code' : 'Select some code first'}
-      />
+        disabled={!canExplain}
+        title={canExplain ? `Explain the selection (${EXPLAIN_SHORTCUT})` : 'Select some code first'}
+      >
+        <SparkleIcon />
+        Explain
+      </button>
     </div>
   )
 }

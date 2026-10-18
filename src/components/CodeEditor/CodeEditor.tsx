@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import type { editor as MonacoEditor } from 'monaco-editor'
-import { configureMonaco, LENS_THEME, monaco } from './monacoSetup'
+import { configureMonaco, EDITOR_FONT_FAMILY, LENS_THEME, monaco } from './monacoSetup'
 import { SelectionActions, type PopoverPosition } from '../SelectionActions/SelectionActions'
 import type { SourceRange } from '../../types/explanation'
 import type { CodeSelection, WorkspaceFile } from '../../types/workspace'
@@ -9,16 +9,10 @@ import './CodeEditor.css'
 
 configureMonaco()
 
-export interface CursorPosition {
-  line: number
-  column: number
-}
-
 interface CodeEditorProps {
   file: WorkspaceFile
   onChange: (content: string) => void
   onSelectionChange: (selection: CodeSelection | null) => void
-  onCursorChange: (position: CursorPosition) => void
   /** Fired by the floating action, the keyboard shortcut or the context menu. */
   onExplain: () => void
   /** Range of the code currently shown in the explanation panel. */
@@ -29,23 +23,24 @@ interface CodeEditorProps {
 
 type IStandaloneCodeEditor = MonacoEditor.IStandaloneCodeEditor
 
-const POPOVER_WIDTH = 132
-const POPOVER_HEIGHT = 30
-const POPOVER_GAP = 6
+/** The floating Explain pill's footprint, for placing it clear of the selection. */
+const PILL_WIDTH = 88
+const PILL_HEIGHT = 28
+const PILL_GAP = 4
 
 const EDITOR_OPTIONS: MonacoEditor.IStandaloneEditorConstructionOptions = {
-  fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace",
-  fontSize: 13.5,
-  lineHeight: 22,
+  fontFamily: EDITOR_FONT_FAMILY,
+  fontSize: 13,
+  lineHeight: 20,
   fontLigatures: false,
   minimap: { enabled: false },
   scrollBeyondLastLine: false,
   renderLineHighlight: 'line',
-  padding: { top: 18, bottom: 24 },
+  padding: { top: 16, bottom: 24 },
   smoothScrolling: true,
   cursorBlinking: 'smooth',
   cursorSmoothCaretAnimation: 'on',
-  roundedSelection: true,
+  roundedSelection: false,
   lineNumbersMinChars: 3,
   glyphMargin: false,
   folding: true,
@@ -61,6 +56,7 @@ const EDITOR_OPTIONS: MonacoEditor.IStandaloneEditorConstructionOptions = {
   occurrencesHighlight: 'off',
   renderWhitespace: 'none',
   guides: { indentation: true, bracketPairs: false },
+  // Not enough on its own; see the model-level switch in monacoSetup.
   bracketPairColorization: { enabled: false },
   tabSize: 2,
   wordWrap: 'off',
@@ -94,7 +90,6 @@ export function CodeEditor({
   file,
   onChange,
   onSelectionChange,
-  onCursorChange,
   onExplain,
   highlightRange,
   suppressActions = false,
@@ -106,46 +101,70 @@ export function CodeEditor({
   const [popover, setPopover] = useState<PopoverPosition | null>(null)
 
   // Keep latest callbacks reachable from listeners registered once on mount.
-  const callbacks = useRef({ onSelectionChange, onCursorChange, onExplain })
+  const callbacks = useRef({ onSelectionChange, onExplain })
   useEffect(() => {
-    callbacks.current = { onSelectionChange, onCursorChange, onExplain }
+    callbacks.current = { onSelectionChange, onExplain }
   })
 
+  /**
+   * Place the Explain pill where it never covers the selection: above the
+   * first selected line; else just past the end of the selected lines; else
+   * below the last one. Hidden when none of those is visible.
+   */
   const updatePopover = useCallback(() => {
     const editor = editorRef.current
-    if (!editor) return
-    const selection = editor.getSelection()
-    const dom = editor.getDomNode()
-    if (!selection || selection.isEmpty() || draggingRef.current || !dom || !focusedRef.current) {
-      setPopover(null)
-      return
-    }
-    const singleLine = selection.startLineNumber === selection.endLineNumber
-    const anchor = {
-      lineNumber: selection.endLineNumber,
-      column: singleLine ? selection.getPosition().column : selection.endColumn,
-    }
-    const pos = editor.getScrolledVisiblePosition(anchor)
-    if (!pos) {
+    const model = editor?.getModel()
+    const dom = editor?.getDomNode()
+    const selection = editor?.getSelection()
+    if (
+      !editor ||
+      !model ||
+      !dom ||
+      !selection ||
+      selection.isEmpty() ||
+      draggingRef.current ||
+      !focusedRef.current
+    ) {
       setPopover(null)
       return
     }
     const { width, height } = dom.getBoundingClientRect()
-    if (pos.top < 0 || pos.top + pos.height > height) {
-      setPopover(null)
+    const layout = editor.getLayoutInfo()
+    const lineHeight = editor.getOption(monaco.editor.EditorOption.lineHeight)
+    const right = width - layout.verticalScrollbarWidth - 8
+    const visible = (top: number) => top >= 0 && top + lineHeight <= height
+    const clampLeft = (left: number) =>
+      Math.max(layout.contentLeft, Math.min(left, right - PILL_WIDTH))
+    const at = (lineNumber: number, column: number) =>
+      editor.getScrolledVisiblePosition({ lineNumber, column })
+
+    const { startLineNumber, startColumn, endLineNumber, endColumn } = selection
+    const start = at(startLineNumber, startColumn)
+    if (start && visible(start.top) && start.top - PILL_GAP - PILL_HEIGHT >= 0) {
+      setPopover({ top: start.top - PILL_GAP - PILL_HEIGHT, left: clampLeft(start.left) })
       return
     }
-    const layout = editor.getLayoutInfo()
-    const minLeft = layout.contentLeft + 2
-    let left = Math.max(minLeft, pos.left)
-    left = Math.min(left, width - POPOVER_WIDTH - 12)
-    let top = pos.top + pos.height + POPOVER_GAP
-    let placement: PopoverPosition['placement'] = 'below'
-    if (top + POPOVER_HEIGHT > height - 8) {
-      top = pos.top - POPOVER_HEIGHT - POPOVER_GAP
-      placement = 'above'
+
+    // Right of the longest selected line, so the pill can't overlap any of it.
+    let lineEnd = -1
+    for (let line = startLineNumber; line <= endLineNumber; line++) {
+      const pos = at(line, model.getLineMaxColumn(line))
+      if (pos && visible(pos.top)) lineEnd = Math.max(lineEnd, pos.left)
     }
-    setPopover({ top, left, placement })
+    const last = at(endLineNumber, endColumn)
+    if (last && visible(last.top) && lineEnd >= 0 && lineEnd + 8 + PILL_WIDTH <= right) {
+      setPopover({ top: last.top + (lineHeight - PILL_HEIGHT) / 2, left: lineEnd + 8 })
+      return
+    }
+
+    if (last && visible(last.top) && last.top + lineHeight + PILL_GAP + PILL_HEIGHT <= height) {
+      setPopover({
+        top: last.top + lineHeight + PILL_GAP,
+        left: clampLeft(start?.left ?? last.left),
+      })
+      return
+    }
+    setPopover(null)
   }, [])
 
   const handleMount: OnMount = (editor) => {
@@ -167,13 +186,6 @@ export function CodeEditor({
         })
       }
       updatePopover()
-    })
-
-    editor.onDidChangeCursorPosition((e) => {
-      callbacks.current.onCursorChange({
-        line: e.position.lineNumber,
-        column: e.position.column,
-      })
     })
 
     editor.onDidScrollChange(updatePopover)
@@ -201,14 +213,6 @@ export function CodeEditor({
       contextMenuOrder: 0,
       run: () => callbacks.current.onExplain(),
     })
-
-    const position = editor.getPosition()
-    if (position) {
-      callbacks.current.onCursorChange({
-        line: position.lineNumber,
-        column: position.column,
-      })
-    }
   }
 
   // Mouse-up can happen outside the editor; listen globally.
@@ -241,7 +245,6 @@ export function CodeEditor({
         ),
         options: {
           className: 'lens-explained-range',
-          linesDecorationsClassName: 'lens-explained-gutter',
           stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
         },
       },

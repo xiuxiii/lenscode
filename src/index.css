@@ -1,49 +1,62 @@
-/* ───────────────────────────── Design tokens ───────────────────────────── */
+/* ───────────────────────────── Design tokens ─────────────────────────────
+ * Components use these tokens only — no raw colours in component CSS.
+ * The Monaco theme (CodeEditor/monacoSetup.ts) mirrors the same values.
+ */
 :root {
   color-scheme: dark;
 
-  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+  /* Type: one sans, one mono, integer sizes only */
+  --font-sans: 'Geist Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
     Helvetica, Arial, sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'Liberation Mono',
-    monospace;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas,
+    'Liberation Mono', monospace;
 
-  --bg-app: #0c0e12;
-  --bg-surface: #111419;
-  --bg-elevated: #171b22;
-  --bg-hover: #1b2028;
-  --bg-editor: #0e1116;
+  --text-xs: 12px; /* meta, kbd, counts */
+  --leading-xs: 16px;
+  --text-sm: 13px; /* rows, toolbar controls, secondary text, headings */
+  --leading-sm: 20px;
+  --text-base: 14px; /* body, inputs, buttons */
+  --leading-base: 22px;
+  --text-lg: 16px; /* the lead answer */
+  --leading-lg: 24px;
+  --text-xl: 20px; /* selected-symbol title */
+  --leading-xl: 28px;
 
-  --border: #1e232b;
-  --border-strong: #2a3039;
+  /* Colour: zero-chroma greys; blue only for focus, selection and the
+     explained range */
+  --bg: #0a0a0a;
+  --bg-subtle: #111111;
+  --bg-raised: #1a1a1a;
+  --bg-active: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.145);
+  --text: #ededed; /* 16.9:1 on --bg */
+  --text-2: #a1a1a1; /* 7.7:1 */
+  --text-3: #878787; /* 5.5:1 on --bg, 4.8:1 on --bg-raised */
+  --primary-hover: #cccccc; /* black text stays 12:1 */
+  --accent: #0070f3;
+  --accent-tint: rgba(0, 112, 243, 0.08);
+  --selection: rgba(0, 112, 243, 0.3);
+  --danger: #ff6166;
+  --scrim: rgba(10, 10, 10, 0.8);
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.4); /* pill and menus only */
 
-  --text: #e6e9ee;
-  --text-2: #9aa4b2;
-  --text-3: #626c7a;
+  /* Radius */
+  --radius-xs: 4px; /* kbd, inline code */
+  --radius-sm: 6px; /* buttons, inputs, rows */
+  --radius-md: 8px; /* cards, popovers, composer */
+  --radius-lg: 12px; /* the mobile bottom sheet's top corners only */
 
-  --accent: #7c9cff;
-  --accent-strong: #6284ff;
-  --accent-text: #0b0f1a;
-  --accent-soft: rgba(124, 156, 255, 0.14);
-  --accent-ring: rgba(124, 156, 255, 0.45);
-
-  --success: #4ade80;
-  --danger: #f87171;
-  --danger-soft: rgba(248, 113, 113, 0.12);
-
-  --code-selection: rgba(124, 156, 255, 0.3);
-
-  --radius-sm: 5px;
-  --radius: 7px;
-  --radius-lg: 10px;
-
-  --shadow-pop: 0 6px 20px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04);
-
-  --topbar-h: 46px;
-  --statusbar-h: 26px;
-  --sidebar-w: 224px;
+  /* Sizes */
+  --h-row: 28px;
+  --h-control: 32px;
+  --h-composer: 40px;
+  --h-topbar: 48px;
+  --h-subheader: 40px; /* every column header, so their borders form one line */
+  --sidebar-w: 240px;
 }
 
-/* ─────────────────────────────── Base reset ─────────────────────────────── */
+/* ─────────────────────────────── Base ─────────────────────────────── */
 *,
 *::before,
 *::after {
@@ -58,14 +71,13 @@ body,
 }
 
 body {
-  background: var(--bg-app);
+  background: var(--bg);
   color: var(--text);
-  font-family: var(--font-ui);
-  font-size: 13px;
-  line-height: 1.5;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
   overflow: hidden;
 }
 
@@ -78,11 +90,25 @@ body.is-resizing * {
   cursor: col-resize !important;
 }
 
+body.is-resizing-sheet {
+  cursor: row-resize;
+  user-select: none;
+}
+
+p,
+h1,
+h2,
+h3 {
+  margin: 0;
+}
+
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
   color: inherit;
+  letter-spacing: inherit;
 }
 
 button {
@@ -103,15 +129,14 @@ pre {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent-ring);
-  outline-offset: 1px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 ::selection {
-  background: var(--code-selection);
+  background: var(--selection);
 }
 
-/* Thin, unobtrusive scrollbars */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
@@ -124,7 +149,7 @@ pre {
 
 *::-webkit-scrollbar-thumb {
   background: var(--border-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 2px solid transparent;
   background-clip: padding-box;
 }
@@ -133,101 +158,163 @@ pre {
   background: transparent;
 }
 
-/* ───────────────────────────── Shared primitives ───────────────────────────── */
-.icon-button {
+/* ───────────────────────────── Buttons ─────────────────────────────
+ * Exactly three variants. Disabled is the same variant at half opacity.
+ */
+.btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  gap: 8px;
+  height: var(--h-control);
+  padding: 0 12px;
   border-radius: var(--radius-sm);
-  color: var(--text-2);
-  transition: background-color 120ms ease, color 120ms ease;
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out,
+    border-color 120ms ease-out;
 }
 
-.icon-button:hover {
-  background: var(--bg-hover);
+.btn:disabled {
+  opacity: 0.5;
+}
+
+.btn--primary {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn--secondary {
+  border: 1px solid var(--border-strong);
   color: var(--text);
 }
 
-.icon-button:disabled {
-  opacity: 0.4;
+.btn--secondary:hover:not(:disabled) {
+  background: var(--bg-raised);
 }
 
+.btn--ghost {
+  color: var(--text-2);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--bg-raised);
+  color: var(--text);
+}
+
+/* Compact size: 28px, for sidebar actions and text buttons in rows */
+.btn--sm {
+  height: var(--h-row);
+  padding: 0 8px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+/* Icon-only ghost button: 28px, or 32px in the top bar */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--h-row);
+  height: var(--h-row);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--bg-raised);
+  color: var(--text);
+}
+
+.icon-btn:disabled {
+  opacity: 0.5;
+}
+
+.icon-btn--lg {
+  width: var(--h-control);
+  height: var(--h-control);
+}
+
+/* ───────────────────────────── Inline primitives ───────────────────────────── */
 .kbd {
   display: inline-flex;
   align-items: center;
-  gap: 1px;
-  padding: 1px 5px;
-  border-radius: 4px;
+  padding: 0 4px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--border-strong);
-  background: rgba(255, 255, 255, 0.02);
-  color: var(--text-3);
-  font-family: var(--font-ui);
-  font-size: 10.5px;
+  color: var(--text-2);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
   font-weight: 500;
-  line-height: 1.4;
-  letter-spacing: 0.02em;
 }
 
 .inline-code {
-  font-family: var(--font-mono);
-  font-size: 0.92em;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.05);
+  padding: 1px 4px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-raised);
   color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
-.eyebrow {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--text-3);
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-/* Explained-range decoration inside Monaco */
-.lens-explained-range {
-  background: rgba(124, 156, 255, 0.1);
-  border-bottom: 1px solid rgba(124, 156, 255, 0.55);
-  border-radius: 2px;
-}
-
-.lens-explained-gutter {
-  background: var(--accent);
-  width: 2px !important;
-  margin-left: 3px;
-  border-radius: 1px;
-}
-
-/* Monaco chrome tweaks */
+/* ───────────────────────────── Monaco chrome ───────────────────────────── */
 .monaco-editor .margin,
 .monaco-editor .monaco-editor-background {
-  background: var(--bg-editor) !important;
+  background: var(--bg) !important;
 }
 
 .monaco-editor .context-view.monaco-menu-container {
-  font-family: var(--font-ui);
+  font-family: var(--font-sans);
 }
 
-@keyframes lens-fade-up {
+/* The range currently shown in the explanation panel: a 1px underline with a
+   faint tint, not a box. */
+.lens-explained-range {
+  background: var(--accent-tint);
+  border-bottom: 1px solid var(--accent);
+}
+
+/* ───────────────────────────── Motion ───────────────────────────── */
+@keyframes lens-fade {
   from {
     opacity: 0;
-    transform: translateY(4px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
-@keyframes lens-shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
+@keyframes lens-pulse {
+  50% {
+    opacity: 0.5;
   }
 }
 
@@ -236,6 +323,7 @@ pre {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }
