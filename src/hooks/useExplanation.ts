@@ -21,8 +21,10 @@ export interface ExplanationState {
 type Action =
   | { type: 'start'; request: ExplanationRequest }
   | { type: 'success'; explanation: Explanation }
+  | { type: 'show'; explanation: Explanation }
   | { type: 'failure'; error: ExplanationError }
   | { type: 'reset' }
+  | { type: 'clearHistory' }
 
 const HISTORY_LIMIT = 6
 
@@ -34,6 +36,14 @@ const initialState: ExplanationState = {
   history: [],
 }
 
+/** Most recent first, one entry per selection, capped. */
+function addToHistory(history: Explanation[], explanation: Explanation): Explanation[] {
+  return [
+    explanation,
+    ...history.filter((h) => h.selectedCode !== explanation.selectedCode),
+  ].slice(0, HISTORY_LIMIT)
+}
+
 function reducer(state: ExplanationState, action: Action): ExplanationState {
   switch (action.type) {
     case 'start':
@@ -43,30 +53,42 @@ function reducer(state: ExplanationState, action: Action): ExplanationState {
         request: action.request,
         error: null,
       }
-    case 'success': {
-      const history = [
-        action.explanation,
-        ...state.history.filter(
-          (h) => h.selectedCode !== action.explanation.selectedCode,
-        ),
-      ].slice(0, HISTORY_LIMIT)
+    case 'success':
       return {
         ...state,
         status: 'loaded',
         explanation: action.explanation,
         error: null,
-        history,
+        history: addToHistory(state.history, action.explanation),
       }
-    }
+    case 'show':
+      // A saved explanation from history: shown as-is, no new request.
+      return {
+        ...state,
+        status: 'loaded',
+        request: {
+          selectedCode: action.explanation.selectedCode,
+          language: action.explanation.language,
+          surroundingContext: { fullSource: '', range: null },
+        },
+        explanation: action.explanation,
+        error: null,
+        history: addToHistory(state.history, action.explanation),
+      }
     case 'failure':
       return { ...state, status: 'error', error: action.error }
     case 'reset':
       return { ...initialState, history: state.history }
+    case 'clearHistory':
+      return { ...state, history: [] }
   }
 }
 
-export function useExplanation() {
-  const [state, dispatch] = useReducer(reducer, initialState)
+export function useExplanation(initialHistory: Explanation[] = []) {
+  const [state, dispatch] = useReducer(reducer, initialHistory, (history) => ({
+    ...initialState,
+    history: history.slice(0, HISTORY_LIMIT),
+  }))
   const controllerRef = useRef<AbortController | null>(null)
 
   const cancel = useCallback(() => {
@@ -115,6 +137,17 @@ export function useExplanation() {
     dispatch({ type: 'reset' })
   }, [cancel])
 
+  /** Show a previously saved explanation without asking the API again. */
+  const show = useCallback(
+    (explanation: Explanation) => {
+      cancel()
+      dispatch({ type: 'show', explanation })
+    },
+    [cancel],
+  )
+
+  const clearHistory = useCallback(() => dispatch({ type: 'clearHistory' }), [])
+
   useEffect(() => cancel, [cancel])
 
   return {
@@ -122,6 +155,8 @@ export function useExplanation() {
     explain,
     retry,
     reset,
+    show,
+    clearHistory,
     providerName: explanationEngineName,
   }
 }

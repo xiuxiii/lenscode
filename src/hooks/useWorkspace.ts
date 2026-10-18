@@ -2,11 +2,13 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { DEFAULT_PROJECT_NAME, STARTER_FILES } from '../data/starterFiles'
 import { detectLanguage } from '../lib/detectLanguage'
 import type { ImportedFile } from '../lib/importFiles'
+import type { SavedWorkspace } from '../lib/sessionStore'
 import type { WorkspaceFile } from '../types/workspace'
 
 /**
- * In-memory workspace: a project name and its files, one of which is open.
- * Nothing is persisted in this segment.
+ * The workspace: a project name and its files, one of which is open.
+ * It starts from the session saved in this browser, if any (see
+ * `sessionStore`), and is saved again by `useSessionPersistence`.
  *
  * A file's language is never chosen by hand: it is detected from the content
  * when the file is opened and re-detected on every edit (see `detectLanguage`).
@@ -27,10 +29,24 @@ function pickInitialFile(files: WorkspaceFile[]): WorkspaceFile {
   )
 }
 
-export function useWorkspace() {
-  const [projectName, setProjectName] = useState(DEFAULT_PROJECT_NAME)
-  const [files, setFiles] = useState<WorkspaceFile[]>(STARTER_FILES)
-  const [activeFileId, setActiveFileId] = useState(STARTER_FILES[0].id)
+/** A fresh copy of the example project. New ids, so no stale editor models. */
+function exampleWorkspace(): SavedWorkspace {
+  const stamp = Date.now()
+  const files = STARTER_FILES.map((f) => ({ ...f, id: `${f.id}_${stamp}` }))
+  return {
+    projectName: DEFAULT_PROJECT_NAME,
+    isExample: true,
+    files,
+    activeFileId: files[0].id,
+  }
+}
+
+export function useWorkspace(initial: SavedWorkspace | null) {
+  const [start] = useState(() => initial ?? exampleWorkspace())
+  const [projectName, setProjectName] = useState(start.projectName)
+  const [isExample, setIsExample] = useState(start.isExample)
+  const [files, setFiles] = useState<WorkspaceFile[]>(start.files)
+  const [activeFileId, setActiveFileId] = useState(start.activeFileId)
   const nextId = useRef(0)
 
   const activeFile = useMemo(
@@ -90,6 +106,7 @@ export function useWorkspace() {
       if (imported.length === 0) return
       const opened = imported.map(toWorkspaceFile)
       setProjectName(name)
+      setIsExample(false)
       setFiles(opened)
       setActiveFileId(pickInitialFile(opened).id)
     },
@@ -124,14 +141,26 @@ export function useWorkspace() {
     [files, toWorkspaceFile],
   )
 
+  /** Go back to a fresh example project (also how the example is reset). */
+  const closeProject = useCallback(() => {
+    const example = exampleWorkspace()
+    setProjectName(example.projectName)
+    setIsExample(true)
+    setFiles(example.files)
+    setActiveFileId(example.activeFileId)
+  }, [])
+
   return {
     projectName,
+    isExample,
     files,
     activeFile,
+    activeFileId: activeFile.id,
     selectFile: setActiveFileId,
     setContent,
     addFile,
     openFolder,
     addFiles,
+    closeProject,
   }
 }

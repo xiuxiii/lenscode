@@ -262,3 +262,22 @@
   flex-shrink: 0;
   color: var(--text-3);
 }
+
+.file-sidebar__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.file-sidebar__text-button {
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  font-size: 11px;
+  transition: color 100ms ease, background-color 100ms ease;
+}
+
+.file-sidebar__text-button:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}

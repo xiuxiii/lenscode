@@ -8,8 +8,10 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react'
 import { useExplanation } from '../../hooks/useExplanation'
+import { useSessionPersistence } from '../../hooks/useSessionPersistence'
 import { useWorkspace } from '../../hooks/useWorkspace'
 import { pickedFromDrop, readPickedFiles, type PickedFile } from '../../lib/importFiles'
+import { createSessionWriter, type SavedSession } from '../../lib/sessionStore'
 import { normalizeSelection } from '../../lib/selection'
 import type { Explanation, ExplanationRequest } from '../../types/explanation'
 import type { CodeSelection } from '../../types/workspace'
@@ -31,11 +33,31 @@ function initialSidebarOpen(): boolean {
   return window.innerWidth > SIDEBAR_BREAKPOINT
 }
 
-export function AppShell() {
-  const workspace = useWorkspace()
+export function AppShell({ session }: { session: SavedSession }) {
+  const workspace = useWorkspace(session.workspace)
   const { activeFile } = workspace
-  const { state: explanationState, explain, retry, reset, providerName } =
-    useExplanation()
+  const {
+    state: explanationState,
+    explain,
+    retry,
+    reset,
+    show,
+    clearHistory,
+    providerName,
+  } = useExplanation(session.history)
+
+  // Remember the project and history in this browser across reloads.
+  const [writer] = useState(() => createSessionWriter(session))
+  useSessionPersistence(
+    writer,
+    {
+      projectName: workspace.projectName,
+      isExample: workspace.isExample,
+      files: workspace.files,
+      activeFileId: workspace.activeFileId,
+    },
+    explanationState.history,
+  )
 
   const [selection, setSelection] = useState<CodeSelection | null>(null)
   const [cursor, setCursor] = useState<CursorPosition>({ line: 1, column: 1 })
@@ -78,17 +100,8 @@ export function AppShell() {
     [explain, buildRequest],
   )
 
-  const reopenExplanation = useCallback(
-    (item: Explanation) => {
-      void explain({
-        selectedCode: item.selectedCode,
-        language: item.language,
-        fileName: activeFile.path,
-        surroundingContext: { fullSource: activeFile.content, range: null },
-      })
-    },
-    [explain, activeFile],
-  )
+  // History holds full explanations, so reopening one costs no API call.
+  const reopenExplanation = useCallback((item: Explanation) => show(item), [show])
 
   // ─────────────────────────── Workspace actions ───────────────────────────
   const selectFile = useCallback(
@@ -111,6 +124,13 @@ export function AppShell() {
   const [importing, setImporting] = useState(false)
   const [importNotice, setImportNotice] = useState<ImportNotice | null>(null)
   const [dragDepth, setDragDepth] = useState(0)
+
+  const closeProject = useCallback(() => {
+    workspace.closeProject()
+    setSelection(null)
+    setImportNotice(null)
+    reset()
+  }, [workspace, reset])
 
   const importPicked = useCallback(
     async (picked: PickedFile[], mode: 'folder' | 'files', ignoredFolders?: string[]) => {
@@ -244,7 +264,10 @@ export function AppShell() {
             onOpenFolder={(picked) => void importPicked(picked, 'folder')}
             onOpenFiles={(picked) => void importPicked(picked, 'files')}
             onDismissNotice={() => setImportNotice(null)}
+            isExample={workspace.isExample}
+            onCloseProject={closeProject}
             onReopenExplanation={reopenExplanation}
+            onClearHistory={clearHistory}
           />
         )}
 
@@ -256,7 +279,11 @@ export function AppShell() {
           />
           <CodeEditor
             file={activeFile}
-            onChange={workspace.setContent}
+            onChange={(content) => {
+              // Recorded synchronously so a reload right after typing keeps it.
+              writer.noteDraft(activeFile.id, content)
+              workspace.setContent(content)
+            }}
             onSelectionChange={setSelection}
             onCursorChange={setCursor}
             onExplain={explainSelection}
