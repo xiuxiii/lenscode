@@ -4,18 +4,19 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
 } from 'react'
-import { DEFAULT_PROJECT_NAME } from '../../data/starterFiles'
 import { useExplanation } from '../../hooks/useExplanation'
 import { useWorkspace } from '../../hooks/useWorkspace'
+import { pickedFromDrop, readPickedFiles, type PickedFile } from '../../lib/importFiles'
 import { normalizeSelection } from '../../lib/selection'
 import type { Explanation, ExplanationRequest } from '../../types/explanation'
 import type { CodeSelection } from '../../types/workspace'
 import { CodeEditor, type CursorPosition } from '../CodeEditor/CodeEditor'
 import { EditorToolbar } from '../CodeEditor/EditorToolbar'
 import { ExplanationPanel } from '../ExplanationPanel/ExplanationPanel'
-import { FileSidebar } from '../FileSidebar/FileSidebar'
+import { FileSidebar, type ImportNotice } from '../FileSidebar/FileSidebar'
 import { StatusBar } from '../StatusBar/StatusBar'
 import { TopBar } from '../TopBar/TopBar'
 import './AppShell.css'
@@ -49,7 +50,7 @@ export function AppShell() {
     (code: string, range: CodeSelection | null): ExplanationRequest => ({
       selectedCode: code,
       language: activeFile.language,
-      fileName: activeFile.name,
+      fileName: activeFile.path,
       surroundingContext: {
         fullSource: activeFile.content,
         range: range
@@ -82,7 +83,7 @@ export function AppShell() {
       void explain({
         selectedCode: item.selectedCode,
         language: item.language,
-        fileName: activeFile.name,
+        fileName: activeFile.path,
         surroundingContext: { fullSource: activeFile.content, range: null },
       })
     },
@@ -105,6 +106,69 @@ export function AppShell() {
     setSelection(null)
     reset()
   }, [workspace, reset])
+
+  // ─────────────────────────── Opening files ───────────────────────────
+  const [importing, setImporting] = useState(false)
+  const [importNotice, setImportNotice] = useState<ImportNotice | null>(null)
+  const [dragDepth, setDragDepth] = useState(0)
+
+  const importPicked = useCallback(
+    async (picked: PickedFile[], mode: 'folder' | 'files', ignoredFolders?: string[]) => {
+      if (picked.length === 0 && !ignoredFolders?.length) return
+      setImporting(true)
+      try {
+        const result = await readPickedFiles(picked, {
+          asFolder: mode === 'folder',
+          ignoredFolders,
+        })
+        if (result.files.length > 0) {
+          if (mode === 'folder' && result.rootName) {
+            workspace.openFolder(result.rootName, result.files)
+          } else {
+            workspace.addFiles(result.files)
+          }
+          setSelection(null)
+          reset()
+        }
+        setImportNotice({ mode, result })
+      } finally {
+        setImporting(false)
+      }
+    },
+    [workspace, reset],
+  )
+
+  const hasFiles = (e: ReactDragEvent) => e.dataTransfer.types.includes('Files')
+
+  // Capture-phase handlers so dropped files never reach Monaco (which would
+  // otherwise try to insert them as text). Plain text drags are left alone.
+  const dropHandlers = {
+    onDragEnterCapture: (e: ReactDragEvent) => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      setDragDepth((d) => d + 1)
+    },
+    onDragOverCapture: (e: ReactDragEvent) => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      e.stopPropagation()
+      e.dataTransfer.dropEffect = 'copy'
+    },
+    onDragLeaveCapture: (e: ReactDragEvent) => {
+      if (!hasFiles(e)) return
+      setDragDepth((d) => Math.max(0, d - 1))
+    },
+    onDropCapture: (e: ReactDragEvent) => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      e.stopPropagation()
+      setDragDepth(0)
+      // Must run synchronously inside the event, before the browser clears it.
+      void pickedFromDrop(e.dataTransfer).then(({ picked, ignoredFolders, singleFolder }) =>
+        importPicked(picked, singleFolder ? 'folder' : 'files', ignoredFolders),
+      )
+    },
+  }
 
   // Collapse / restore the sidebar as the viewport crosses the breakpoint.
   useEffect(() => {
@@ -158,9 +222,10 @@ export function AppShell() {
     <div
       className={`app-shell${sidebarOpen ? '' : ' app-shell--sidebar-collapsed'}`}
       style={{ '--panel-w': `${panelWidth}px` } as CSSProperties}
+      {...dropHandlers}
     >
       <TopBar
-        projectName={DEFAULT_PROJECT_NAME}
+        projectName={workspace.projectName}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
       />
@@ -168,12 +233,17 @@ export function AppShell() {
       <div className="app-shell__body">
         {sidebarOpen && (
           <FileSidebar
-            projectName={DEFAULT_PROJECT_NAME}
+            projectName={workspace.projectName}
             files={workspace.files}
-            activeFileId={activeFile.id}
+            activeFile={activeFile}
             history={explanationState.history}
+            importing={importing}
+            notice={importNotice}
             onSelectFile={selectFile}
             onNewFile={newFile}
+            onOpenFolder={(picked) => void importPicked(picked, 'folder')}
+            onOpenFiles={(picked) => void importPicked(picked, 'files')}
+            onDismissNotice={() => setImportNotice(null)}
             onReopenExplanation={reopenExplanation}
           />
         )}
@@ -215,13 +285,25 @@ export function AppShell() {
       </div>
 
       <StatusBar
-        fileName={activeFile.name}
+        fileName={activeFile.path}
         language={activeFile.language}
         cursor={cursor}
         selection={selection}
         explanationStatus={explanationState.status}
         providerName={providerName}
       />
+
+      {dragDepth > 0 && (
+        <div className="drop-overlay" aria-hidden="true">
+          <div className="drop-overlay__card">
+            <p className="drop-overlay__title">Drop to open</p>
+            <p className="drop-overlay__hint">
+              A folder opens as a project; files are added to this one. Nothing is
+              uploaded.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

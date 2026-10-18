@@ -10,7 +10,7 @@ A polished, fully interactive frontend with a small LLM-backed explanation route
 PASTE CODE → SELECT CODE → EXPLAIN → READ EXPLANATION
 ```
 
-1. The app opens directly into the workspace with a realistic starter file. Click **+** for a blank file and paste any code or terminal command into it.
+1. The app opens directly into the workspace with a realistic starter file. Use **Open folder** or **Open files** (or drag them onto the window) to load your own code, or click **+** for a blank file and paste any code or terminal command into it.
 2. The language is detected automatically from the code. There is nothing to choose. The toolbar badge and the top of the explanation panel say what it is, in plain English.
 3. Highlight a keyword, a name, a call, a command, or a whole line in the editor.
 4. A small **Explain** pill appears next to the selection. Click it, press `⌘E` / `Ctrl+E`, use the editor context menu, or click the persistent **Explain** button in the toolbar.
@@ -59,7 +59,8 @@ src/
   components/
     AppShell/           Layout grid, workspace + explanation state wiring, panel resizer
     TopBar/             Brand, project switcher placeholder, settings
-    FileSidebar/        Starter files, "new file", recent explanations
+    FileSidebar/        Open folder / files, import summary, folder tree, recent explanations
+      FileTree          Collapsible tree built from file paths
     CodeEditor/         Monaco wrapper, selection tracking, floating action, theme + workers
       EditorToolbar     File name, detected-language badge, persistent Explain button
     LanguageBadge/      Read-only language badge (toolbar) + plain-English intro (panel)
@@ -69,7 +70,7 @@ src/
     StatusBar/          Engine, status, cursor, selection, language, file
   hooks/
     useExplanation.ts   Reducer-based state machine (idle → loading → loaded | error) with cancellation
-    useWorkspace.ts     In-memory files and active file
+    useWorkspace.ts     In-memory project: name, files (by path), active file, open/add
   services/
     explanationService.ts       explainCode() — the only door between UI and AI
     explanationProviders/
@@ -81,10 +82,24 @@ src/
     languages.ts            Supported languages, colours and one-line beginner descriptions
   lib/
     detectLanguage.ts       Automatic language detection (offline, runs on every edit)
+    importFiles.ts          Reads opened / dropped files and folders, with safety filtering
   types/
     explanation.ts          Explanation, ExplanationRequest, ExplanationProvider
     workspace.ts            WorkspaceFile, CodeSelection, LanguageId
 ```
+
+## Opening your own code
+
+**Open folder** loads a whole project and replaces the current one. **Open files** adds individual files to it. Both also work by dragging onto the window. Files are read in the browser and never uploaded; only the code you choose to explain is sent to the AI, along with the lines around it.
+
+`src/lib/importFiles.ts` decides what gets opened, and the sidebar says what was left out and why:
+
+- **Not your code:** `node_modules`, `.git`, `dist`, `build`, `.next`, virtualenvs, `__pycache__`, `target` and similar folders are skipped. When dropped, they are not even walked.
+- **Secrets are never read:** `.env`, `.env.local` and other `.env.*` files, `.npmrc`, private keys (`*.pem`, `id_rsa`, …). Templates like `.env.example` are fine.
+- **Not text:** images, fonts, archives and executables by extension, plus anything containing NUL bytes.
+- **Too big:** files over 500 KB (the most one explanation can send), and more than 2,000 files or 25 MB in total.
+
+A folder opens on its `README` if it has one. Nothing is saved yet: refreshing the page goes back to the example project.
 
 ## Language detection
 

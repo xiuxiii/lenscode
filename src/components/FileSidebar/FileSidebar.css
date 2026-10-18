@@ -134,3 +134,131 @@
   font-size: 11px;
   color: var(--text-3);
 }
+
+/* ─────────────────────────── Open folder / files ─────────────────────────── */
+.file-sidebar__open {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 0 2px;
+}
+
+.open-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.open-button:hover {
+  background: var(--bg-hover);
+  border-color: #343b46;
+}
+
+.open-button:focus-within {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+.open-button svg {
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+
+/* Visually hidden but still focusable, so the label works from the keyboard. */
+.open-button__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.file-sidebar__hint {
+  margin: 7px 6px 12px;
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+/* ─────────────────────────── Import summary ─────────────────────────── */
+.import-summary {
+  margin: 0 2px 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+  animation: lens-fade-up 160ms ease-out;
+}
+
+.import-summary--busy {
+  color: var(--text-3);
+}
+
+.import-summary--empty {
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+.import-summary__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.import-summary__headline {
+  margin: 0;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.import-summary__close {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: -1px -4px 0 0;
+}
+
+.import-summary__details {
+  margin: 6px 0 0;
+  padding-left: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* ─────────────────────────── Folder tree ─────────────────────────── */
+.file-list__item--folder {
+  gap: 5px;
+}
+
+.file-list__chevron {
+  flex-shrink: 0;
+  color: var(--text-3);
+  transition: transform 120ms ease;
+}
+
+.file-list__chevron--open {
+  transform: rotate(90deg);
+}
+
+.file-list__folder-icon {
+  flex-shrink: 0;
+  color: var(--text-3);
+}

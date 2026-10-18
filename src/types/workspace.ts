@@ -39,7 +39,10 @@ export interface LanguageDefinition {
 
 export interface WorkspaceFile {
   id: string
+  /** File name only, e.g. "app.ts". */
   name: string
+  /** Unique '/'-separated path inside the project, e.g. "src/app.ts". */
+  path: string
   language: LanguageId
   content: string
 }

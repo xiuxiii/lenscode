@@ -9,6 +9,7 @@ export const STARTER_FILES: WorkspaceFile[] = [
   {
     id: 'fetch-users-js',
     name: 'fetchUsers.js',
+    path: 'fetchUsers.js',
     language: 'javascript',
     content: `// Loads the list of users from the server.
 async function fetchUsers() {
@@ -24,6 +25,7 @@ fetchUsers();
   {
     id: 'api-ts',
     name: 'api.ts',
+    path: 'api.ts',
     language: 'typescript',
     content: `export interface User {
   id: number;
@@ -41,6 +43,7 @@ export async function getUsers(): Promise<User[]> {
   {
     id: 'setup-sh',
     name: 'setup.sh',
+    path: 'setup.sh',
     language: 'shell',
     content: `# Commands you might be told to run in a terminal.
 # Highlight any of them to see what it does before you run it.
@@ -56,6 +59,7 @@ git push -u origin my-feature
   {
     id: 'app-py',
     name: 'app.py',
+    path: 'app.py',
     language: 'python',
     content: `import requests
 
@@ -72,6 +76,7 @@ fetch_users()
   {
     id: 'index-html',
     name: 'index.html',
+    path: 'index.html',
     language: 'html',
     content: `<!DOCTYPE html>
 <html lang="en">
@@ -90,6 +95,7 @@ fetch_users()
   {
     id: 'styles-css',
     name: 'styles.css',
+    path: 'styles.css',
     language: 'css',
     content: `:root {
   --accent: #4f7cff;
@@ -110,6 +116,7 @@ fetch_users()
   {
     id: 'package-json',
     name: 'package.json',
+    path: 'package.json',
     language: 'json',
     content: `{
   "name": "user-directory",
