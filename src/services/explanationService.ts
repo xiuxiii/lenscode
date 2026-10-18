@@ -1,62 +1,139 @@
-import type {
-  ExplainOptions,
-  Explanation,
-  ExplanationProvider,
-  ExplanationRequest,
+import {
+  ExplanationError,
+  type ExplainOptions,
+  type Explanation,
+  type ExplanationErrorCode,
+  type ExplanationRequest,
 } from '../types/explanation'
-import { createHttpExplanationProvider } from './explanationProviders/httpProvider'
-import { mockExplanationProvider } from './explanationProviders/mockProvider'
+import { parseExplanationResponse } from './parseExplanation'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────
  *  The one door between the UI and whatever produces explanations.
  * ─────────────────────────────────────────────────────────────────────────
  *
- * Everything the app knows about explanations is `explainCode()` and the
- * `Explanation` type. The UI does not know which provider answers, whether
- * there is an HTTP call, what endpoint is used, how auth works, which model
- * runs, or how the prompt is built — and it must stay that way.
+ *   explainCode() → POST /api/explain → server/explain → LLM provider
  *
- * No key:   explainCode() → mock provider (local catalog)
- * Key set:  explainCode() → HTTP provider → /api/explain (server/) → LLM
- *
- * Which one runs is decided by `VITE_EXPLANATION_API_URL`, which
- * `server/vitePlugin.ts` sets to `/api/explain` when the server has an
- * `LLM_API_KEY`. The key itself stays on the server and must never appear in
- * this directory or in any `VITE_`-prefixed variable, because everything Vite
- * inlines is public. See the "AI API Integration" section of the README.
+ * Everything the UI knows about explanations is `explainCode()` and the
+ * `Explanation` type. It does not know which model runs, how the prompt is
+ * built or how auth works — none of that belongs in code shipped to the
+ * browser, and the API key must never appear in this directory or in any
+ * `VITE_`-prefixed variable (everything Vite inlines is public). See the
+ * "AI API Integration" section of the README.
  */
 
-/** Same-origin path (or absolute URL) of the backend route, when one exists. */
-const API_URL = import.meta.env.VITE_EXPLANATION_API_URL
+/** Same-origin `/api/explain` by default; override only for a backend hosted elsewhere. */
+const API_URL = import.meta.env.VITE_EXPLANATION_API_URL || '/api/explain'
 
-function selectProvider(): ExplanationProvider {
-  if (API_URL) {
-    return createHttpExplanationProvider({ endpoint: API_URL, name: 'API' })
+/** Slightly longer than the server's own LLM timeout, so the server's clearer error wins. */
+const TIMEOUT_MS = 45_000
+
+const ERROR_CODES = new Set<ExplanationErrorCode>([
+  'not_configured',
+  'aborted',
+  'unknown',
+  'network',
+  'timeout',
+  'rate_limited',
+  'invalid_response',
+  'server_error',
+])
+
+/**
+ * The backend reports failures as `{ error: { code, message } }`. Prefer its
+ * wording (e.g. "the API key was rejected") over a generic status message.
+ */
+async function errorFromBody(response: Response): Promise<ExplanationError | null> {
+  try {
+    const body = (await response.json()) as { error?: { code?: unknown; message?: unknown } }
+    const message = body?.error?.message
+    if (typeof message !== 'string' || !message.trim()) return null
+    const code = body.error?.code as ExplanationErrorCode
+    return new ExplanationError(ERROR_CODES.has(code) ? code : 'unknown', message)
+  } catch {
+    return null
   }
-  return mockExplanationProvider
 }
 
-const provider = selectProvider()
+function errorForStatus(status: number): ExplanationError {
+  if (status === 404) {
+    return new ExplanationError(
+      'server_error',
+      'The explanation API route was not found. Is the backend running?',
+    )
+  }
+  if (status === 429) {
+    return new ExplanationError(
+      'rate_limited',
+      'Too many explanations at once. Wait a moment and try again.',
+    )
+  }
+  if (status >= 500) {
+    return new ExplanationError(
+      'server_error',
+      'The explanation service is unavailable right now.',
+    )
+  }
+  return new ExplanationError(
+    'unknown',
+    `The explanation service rejected the request (${status}).`,
+  )
+}
 
 /**
  * Explain a piece of code.
  *
  * @param request  What to explain and the context it sits in.
  * @param options  `signal` cancels a superseded request.
- * @returns        A resolved `Explanation`.
+ * @returns        A validated `Explanation`.
  * @throws         `ExplanationError` with a code the panel can present —
  *                 never an unhandled rejection.
  */
-export function explainCode(
+export async function explainCode(
   request: ExplanationRequest,
   options?: ExplainOptions,
 ): Promise<Explanation> {
-  return provider.explain(request, options)
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+  const onAbort = () => controller.abort()
+  options?.signal?.addEventListener('abort', onAbort, { once: true })
+
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+      signal: controller.signal,
+    })
+    if (!response.ok) {
+      throw (await errorFromBody(response)) ?? errorForStatus(response.status)
+    }
+
+    let body: unknown
+    try {
+      body = await response.json()
+    } catch {
+      throw new ExplanationError(
+        'invalid_response',
+        'The explanation service returned a response that could not be read.',
+      )
+    }
+    return parseExplanationResponse(body, request)
+  } catch (err) {
+    if (err instanceof ExplanationError) throw err
+    // The caller cancelled (new selection, unmount) vs. our own timeout.
+    if (options?.signal?.aborted) {
+      throw new ExplanationError('aborted', 'Request cancelled')
+    }
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new ExplanationError('timeout', 'The explanation took too long. Try again.')
+    }
+    throw new ExplanationError(
+      'network',
+      'Could not reach the explanation service. Check your connection.',
+    )
+  } finally {
+    clearTimeout(timer)
+    options?.signal?.removeEventListener('abort', onAbort)
+  }
 }
-
-/** Label for the engine currently answering, shown in the status bar. */
-export const explanationEngineName: string = provider.name
-
-/** True while the app is answering from the local catalog rather than an API. */
-export const isUsingMockExplanations: boolean = !API_URL

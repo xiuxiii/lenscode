@@ -5,7 +5,9 @@ import {
   useState,
   type CSSProperties,
   type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { useExplanation } from '../../hooks/useExplanation'
 import { useSessionPersistence } from '../../hooks/useSessionPersistence'
@@ -13,24 +15,47 @@ import { useWorkspace } from '../../hooks/useWorkspace'
 import { pickedFromDrop, readPickedFiles, type PickedFile } from '../../lib/importFiles'
 import { createSessionWriter, type SavedSession } from '../../lib/sessionStore'
 import { normalizeSelection } from '../../lib/selection'
+import { EXPLAIN_SHORTCUT } from '../../lib/shortcuts'
 import type { Explanation, ExplanationRequest } from '../../types/explanation'
 import type { CodeSelection } from '../../types/workspace'
-import { CodeEditor, type CursorPosition } from '../CodeEditor/CodeEditor'
+import { CodeEditor } from '../CodeEditor/CodeEditor'
 import { EditorToolbar } from '../CodeEditor/EditorToolbar'
 import { ExplanationPanel } from '../ExplanationPanel/ExplanationPanel'
 import { FileSidebar, type ImportNotice } from '../FileSidebar/FileSidebar'
-import { StatusBar } from '../StatusBar/StatusBar'
+import { SparkleIcon } from '../icons'
 import { TopBar } from '../TopBar/TopBar'
 import './AppShell.css'
 
 const PANEL_MIN = 340
 const PANEL_MAX = 680
 const PANEL_DEFAULT = 420
+const PANEL_STEP = 16
 const SIDEBAR_BREAKPOINT = 1180
+/** At or below this width the sidebar is a drawer and the panel a bottom sheet. */
+const MOBILE_QUERY = '(max-width: 768px)'
+/** The mobile sheet's height, as a percentage of the space below the top bar. */
+const SHEET_MIN = 45
+const SHEET_MAX = 85
+const SHEET_STEP = 5
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
 function initialSidebarOpen(): boolean {
   if (typeof window === 'undefined') return true
   return window.innerWidth > SIDEBAR_BREAKPOINT
+}
+
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches,
+  )
+  useEffect(() => {
+    const query = window.matchMedia(MOBILE_QUERY)
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    query.addEventListener('change', onChange)
+    return () => query.removeEventListener('change', onChange)
+  }, [])
+  return isMobile
 }
 
 export function AppShell({ session }: { session: SavedSession }) {
@@ -43,7 +68,6 @@ export function AppShell({ session }: { session: SavedSession }) {
     reset,
     show,
     clearHistory,
-    providerName,
   } = useExplanation(session.history)
 
   // Remember the project and history in this browser across reloads.
@@ -59,11 +83,18 @@ export function AppShell({ session }: { session: SavedSession }) {
     explanationState.history,
   )
 
+  const isMobile = useIsMobile()
   const [selection, setSelection] = useState<CodeSelection | null>(null)
-  const [cursor, setCursor] = useState<CursorPosition>({ line: 1, column: 1 })
   const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen)
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT)
+  const [sheetPercent, setSheetPercent] = useState(SHEET_MIN)
   const resizing = useRef(false)
+  const bodyRef = useRef<HTMLDivElement>(null)
+
+  /** On mobile the sidebar is a drawer: close it once it has done its job. */
+  const closeDrawer = useCallback(() => {
+    if (isMobile) setSidebarOpen(false)
+  }, [isMobile])
 
   // ─────────────────────────── Explain actions ───────────────────────────
   // The single request shape the explanation service accepts. `projectContext`
@@ -101,24 +132,32 @@ export function AppShell({ session }: { session: SavedSession }) {
   )
 
   // History holds full explanations, so reopening one costs no API call.
-  const reopenExplanation = useCallback((item: Explanation) => show(item), [show])
+  const reopenExplanation = useCallback(
+    (item: Explanation) => {
+      show(item)
+      closeDrawer()
+    },
+    [show, closeDrawer],
+  )
 
   // ─────────────────────────── Workspace actions ───────────────────────────
   const selectFile = useCallback(
     (id: string) => {
+      closeDrawer()
       if (id === activeFile.id) return
       workspace.selectFile(id)
       setSelection(null)
       reset()
     },
-    [activeFile.id, workspace, reset],
+    [activeFile.id, workspace, reset, closeDrawer],
   )
 
   const newFile = useCallback(() => {
     workspace.addFile()
     setSelection(null)
     reset()
-  }, [workspace, reset])
+    closeDrawer()
+  }, [workspace, reset, closeDrawer])
 
   // ─────────────────────────── Opening files ───────────────────────────
   const [importing, setImporting] = useState(false)
@@ -198,18 +237,24 @@ export function AppShell({ session }: { session: SavedSession }) {
     return () => query.removeEventListener('change', onChange)
   }, [])
 
-  // ─────────────────────────── Panel resizing ───────────────────────────
+  // ─────────────────────────── Panel resizing (desktop) ───────────────────────────
   const startResize = useCallback((e: ReactMouseEvent) => {
     e.preventDefault()
     resizing.current = true
     document.body.classList.add('is-resizing')
   }, [])
 
+  const nudgePanel = useCallback((e: ReactKeyboardEvent) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+    e.preventDefault()
+    const delta = e.key === 'ArrowLeft' ? PANEL_STEP : -PANEL_STEP
+    setPanelWidth((w) => clamp(w + delta, PANEL_MIN, PANEL_MAX))
+  }, [])
+
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!resizing.current) return
-      const next = window.innerWidth - e.clientX
-      setPanelWidth(Math.min(PANEL_MAX, Math.max(PANEL_MIN, next)))
+      setPanelWidth(clamp(window.innerWidth - e.clientX, PANEL_MIN, PANEL_MAX))
     }
     const onUp = () => {
       if (!resizing.current) return
@@ -222,6 +267,36 @@ export function AppShell({ session }: { session: SavedSession }) {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
+  }, [])
+
+  // ─────────────────────────── Bottom sheet (mobile) ───────────────────────────
+  const startSheetDrag = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    const body = bodyRef.current
+    if (!body) return
+    e.preventDefault()
+    const handle = e.currentTarget
+    handle.setPointerCapture(e.pointerId)
+    const { bottom, height } = body.getBoundingClientRect()
+    const onMove = (ev: PointerEvent) => {
+      setSheetPercent(clamp(((bottom - ev.clientY) / height) * 100, SHEET_MIN, SHEET_MAX))
+    }
+    const onEnd = () => {
+      handle.removeEventListener('pointermove', onMove)
+      handle.removeEventListener('pointerup', onEnd)
+      handle.removeEventListener('pointercancel', onEnd)
+      document.body.classList.remove('is-resizing-sheet')
+    }
+    handle.addEventListener('pointermove', onMove)
+    handle.addEventListener('pointerup', onEnd)
+    handle.addEventListener('pointercancel', onEnd)
+    document.body.classList.add('is-resizing-sheet')
+  }, [])
+
+  const nudgeSheet = useCallback((e: ReactKeyboardEvent) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+    e.preventDefault()
+    const delta = e.key === 'ArrowUp' ? SHEET_STEP : -SHEET_STEP
+    setSheetPercent((p) => clamp(p + delta, SHEET_MIN, SHEET_MAX))
   }, [])
 
   const highlightRange =
@@ -238,10 +313,17 @@ export function AppShell({ session }: { session: SavedSession }) {
     normalizeSelection(selection!.text) ===
       normalizeSelection(explanationState.request?.selectedCode ?? '')
 
+  const hasSelection = Boolean(selection?.text.trim())
+
+  const shellStyle = {
+    '--panel-w': `${panelWidth}px`,
+    '--sheet-h': `${sheetPercent}%`,
+  } as CSSProperties
+
   return (
     <div
       className={`app-shell${sidebarOpen ? '' : ' app-shell--sidebar-collapsed'}`}
-      style={{ '--panel-w': `${panelWidth}px` } as CSSProperties}
+      style={shellStyle}
       {...dropHandlers}
     >
       <TopBar
@@ -250,10 +332,9 @@ export function AppShell({ session }: { session: SavedSession }) {
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
       />
 
-      <div className="app-shell__body">
+      <div className="app-shell__body" ref={bodyRef}>
         {sidebarOpen && (
           <FileSidebar
-            projectName={workspace.projectName}
             files={workspace.files}
             activeFile={activeFile}
             history={explanationState.history}
@@ -264,19 +345,19 @@ export function AppShell({ session }: { session: SavedSession }) {
             onOpenFolder={(picked) => void importPicked(picked, 'folder')}
             onOpenFiles={(picked) => void importPicked(picked, 'files')}
             onDismissNotice={() => setImportNotice(null)}
+            projectName={workspace.projectName}
             isExample={workspace.isExample}
             onCloseProject={closeProject}
             onReopenExplanation={reopenExplanation}
             onClearHistory={clearHistory}
           />
         )}
+        {sidebarOpen && isMobile && (
+          <div className="app-shell__scrim" onClick={() => setSidebarOpen(false)} />
+        )}
 
         <section className="app-shell__editor" aria-label="Code editor">
-          <EditorToolbar
-            file={activeFile}
-            selection={selection}
-            onExplain={explainSelection}
-          />
+          <EditorToolbar file={activeFile} canExplain={hasSelection} onExplain={explainSelection} />
           <CodeEditor
             file={activeFile}
             onChange={(content) => {
@@ -285,11 +366,21 @@ export function AppShell({ session }: { session: SavedSession }) {
               workspace.setContent(content)
             }}
             onSelectionChange={setSelection}
-            onCursorChange={setCursor}
             onExplain={explainSelection}
             highlightRange={highlightRange}
             suppressActions={selectionAlreadyExplained}
           />
+          {isMobile && hasSelection && !selectionAlreadyExplained && (
+            <button
+              type="button"
+              className="btn btn--primary app-shell__mobile-explain"
+              onClick={explainSelection}
+              title={`Explain the selection (${EXPLAIN_SHORTCUT})`}
+            >
+              <SparkleIcon size={16} />
+              Explain
+            </button>
+          )}
         </section>
 
         <div
@@ -297,7 +388,12 @@ export function AppShell({ session }: { session: SavedSession }) {
           role="separator"
           aria-orientation="vertical"
           aria-label="Resize explanation panel"
+          aria-valuenow={panelWidth}
+          aria-valuemin={PANEL_MIN}
+          aria-valuemax={PANEL_MAX}
+          tabIndex={0}
           onMouseDown={startResize}
+          onKeyDown={nudgePanel}
           onDoubleClick={() => setPanelWidth(PANEL_DEFAULT)}
         />
 
@@ -308,17 +404,25 @@ export function AppShell({ session }: { session: SavedSession }) {
           onExplainSelection={explainSelection}
           onExplainConcept={explainConcept}
           onRetry={retry}
+          sheetHandle={
+            isMobile ? (
+              <div
+                className="app-shell__sheet-handle"
+                role="separator"
+                aria-orientation="horizontal"
+                aria-label="Resize explanation panel"
+                aria-valuenow={Math.round(sheetPercent)}
+                aria-valuemin={SHEET_MIN}
+                aria-valuemax={SHEET_MAX}
+                tabIndex={0}
+                onPointerDown={startSheetDrag}
+                onKeyDown={nudgeSheet}
+                onDoubleClick={() => setSheetPercent(SHEET_MIN)}
+              />
+            ) : null
+          }
         />
       </div>
-
-      <StatusBar
-        fileName={activeFile.path}
-        language={activeFile.language}
-        cursor={cursor}
-        selection={selection}
-        explanationStatus={explanationState.status}
-        providerName={providerName}
-      />
 
       {dragDepth > 0 && (
         <div className="drop-overlay" aria-hidden="true">

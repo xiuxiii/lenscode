@@ -1,79 +1,133 @@
 .app-shell {
   --panel-w: 420px;
   display: grid;
-  grid-template-rows: var(--topbar-h) 1fr var(--statusbar-h);
+  grid-template-rows: var(--h-topbar) minmax(0, 1fr);
   height: 100%;
   min-height: 0;
-  background: var(--bg-app);
+  min-width: 0;
+  overflow: hidden;
+  background: var(--bg);
 }
 
 .app-shell__body {
+  position: relative;
   display: grid;
-  grid-template-columns: var(--sidebar-w) minmax(0, 1fr) 5px var(--panel-w);
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--panel-w);
   min-height: 0;
   min-width: 0;
 }
 
 .app-shell--sidebar-collapsed .app-shell__body {
-  grid-template-columns: minmax(0, 1fr) 5px var(--panel-w);
+  grid-template-columns: minmax(0, 1fr) var(--panel-w);
 }
 
 .app-shell__editor {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
   min-width: 0;
-  background: var(--bg-editor);
+  background: var(--bg);
 }
 
+/* The resizer takes no grid space: a 9px hit area centred on the panel's 1px
+   border, so editor and panel meet at exactly one line. */
 .app-shell__resizer {
-  position: relative;
-  cursor: col-resize;
-  background: transparent;
-  z-index: 2;
-  margin: 0 -2px;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(var(--panel-w) - 5px);
+  z-index: 3;
   width: 9px;
-  justify-self: center;
+  cursor: col-resize;
+}
+
+.app-shell__resizer:focus-visible {
+  outline: none;
 }
 
 .app-shell__resizer::after {
   content: '';
   position: absolute;
-  inset: 0 4px;
-  background: transparent;
-  transition: background-color 120ms ease;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  transition: background-color 120ms ease-out;
 }
 
 .app-shell__resizer:hover::after,
+.app-shell__resizer:focus-visible::after,
 body.is-resizing .app-shell__resizer::after {
-  background: var(--accent-ring);
+  background: var(--accent);
 }
 
-/* ─────────────────────────────── Responsive ─────────────────────────────── */
+.app-shell__mobile-explain,
+.app-shell__scrim,
+.app-shell__sheet-handle {
+  display: none;
+}
+
 @media (max-width: 1180px) {
   .app-shell {
     --panel-w: 380px;
   }
 }
 
-@media (max-width: 900px) {
+/* ─────────────────────────────── Mobile ───────────────────────────────
+ * Sidebar becomes a drawer, the panel a bottom sheet (at least 45% tall,
+ * draggable), and Explain is reachable from a fixed button.
+ */
+@media (max-width: 768px) {
   .app-shell__body,
   .app-shell--sidebar-collapsed .app-shell__body {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(0, 46%);
-  }
-
-  .file-sidebar {
-    display: none;
+    grid-template-rows: minmax(0, 1fr) var(--sheet-h);
   }
 
   .app-shell__resizer {
     display: none;
   }
 
-  .explanation-panel {
-    border-left: 0;
-    border-top: 1px solid var(--border);
+  .app-shell__scrim {
+    display: block;
+    position: fixed;
+    inset: var(--h-topbar) 0 0 0;
+    z-index: 25;
+    background: var(--scrim);
+    animation: lens-fade 120ms ease-out;
+  }
+
+  .app-shell__mobile-explain {
+    display: inline-flex;
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 5;
+    height: var(--h-composer);
+    padding: 0 16px;
+  }
+
+  .app-shell__sheet-handle {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 16px;
+    flex-shrink: 0;
+    cursor: row-resize;
+    touch-action: none;
+  }
+
+  .app-shell__sheet-handle::before {
+    content: '';
+    width: 32px;
+    height: 4px;
+    border-radius: var(--radius-xs);
+    background: var(--border-strong);
+  }
+
+  .app-shell__sheet-handle:focus-visible {
+    outline-offset: -2px;
   }
 }
 
@@ -84,31 +138,30 @@ body.is-resizing .app-shell__resizer::after {
   z-index: 50;
   display: grid;
   place-items: center;
-  background: rgba(12, 14, 18, 0.72);
-  border: 2px dashed var(--accent);
+  padding: 16px;
+  background: var(--scrim);
   pointer-events: none;
-  animation: lens-fade-up 120ms ease-out;
+  animation: lens-fade 120ms ease-out;
 }
 
 .drop-overlay__card {
-  max-width: 340px;
-  padding: 18px 22px;
-  border-radius: var(--radius-lg);
-  background: var(--bg-elevated);
-  box-shadow: var(--shadow-pop);
+  max-width: 320px;
+  padding: 20px 24px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-raised);
   text-align: center;
 }
 
 .drop-overlay__title {
-  margin: 0 0 6px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text);
+  margin-bottom: 4px;
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  font-weight: 500;
 }
 
 .drop-overlay__hint {
-  margin: 0;
-  font-size: 12.5px;
-  line-height: 1.5;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
   color: var(--text-2);
 }

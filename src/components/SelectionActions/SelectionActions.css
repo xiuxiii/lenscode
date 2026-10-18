@@ -1,94 +1,28 @@
-.explain-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: var(--accent-text);
-  font-weight: 600;
-  letter-spacing: 0.005em;
-  white-space: nowrap;
-  transition: background-color 120ms ease, transform 120ms ease, opacity 120ms ease;
-}
-
-.explain-button--sm {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12.5px;
-}
-
-.explain-button--md {
-  height: 34px;
-  padding: 0 14px;
-  font-size: 13px;
-}
-
-.explain-button:hover:not(:disabled) {
-  background: var(--accent-strong);
-  color: #fff;
-}
-
-.explain-button:active:not(:disabled) {
-  transform: translateY(0.5px);
-}
-
-.explain-button:disabled {
-  background: var(--bg-elevated);
-  color: var(--text-3);
-}
-
-.explain-button__kbd {
-  margin-left: 2px;
-  padding: 0 4px;
-  border-radius: 3px;
-  background: rgba(0, 0, 0, 0.18);
-  font-family: var(--font-ui);
-  font-size: 10.5px;
-  font-weight: 600;
-  line-height: 16px;
-}
-
-.explain-button:disabled .explain-button__kbd {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-/* ─────────────────────────── Floating selection pill ─────────────────────────── */
-.selection-actions {
+.selection-pill {
   position: absolute;
   z-index: 10;
-  animation: lens-fade-up 120ms ease-out;
-}
-
-.selection-actions__button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 10px 0 9px;
-  border-radius: var(--radius);
-  background: var(--bg-elevated);
+  gap: 8px;
+  height: var(--h-row);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow-pop);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-float);
   color: var(--text);
-  font-size: 12.5px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
   font-weight: 500;
   white-space: nowrap;
-  transition: background-color 120ms ease, border-color 120ms ease;
+  animation: lens-fade 120ms ease-out;
+  transition: border-color 120ms ease-out;
 }
 
-.selection-actions__button svg {
-  color: var(--accent);
+.selection-pill svg {
+  color: var(--text-2);
 }
 
-.selection-actions__button kbd {
-  margin-left: 2px;
-  color: var(--text-3);
-  font-family: var(--font-ui);
-  font-size: 10.5px;
-  font-weight: 500;
-}
-
-.selection-actions__button:hover {
-  background: var(--bg-hover);
-  border-color: var(--accent-ring);
+.selection-pill:hover {
+  border-color: var(--text-3);
 }

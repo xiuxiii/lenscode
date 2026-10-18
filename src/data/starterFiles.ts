@@ -2,8 +2,7 @@ import type { WorkspaceFile } from '../types/workspace'
 
 /**
  * Small, realistic files that open in the workspace by default so the
- * product never starts empty. Each one exercises a handful of concepts
- * that the mock explanation catalog knows how to explain.
+ * product never starts empty.
  */
 export const STARTER_FILES: WorkspaceFile[] = [
   {

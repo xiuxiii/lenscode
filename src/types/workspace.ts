@@ -25,14 +25,6 @@ export type LanguageId =
 export interface LanguageDefinition {
   id: LanguageId
   label: string
-  /** Default file extension, without the dot. */
-  extension: string
-  /** Short tag shown in compact UI (file icons, status bar). */
-  tag: string
-  /** Accent colour for the tag, badge and panel strip. */
-  color: string
-  /** How the name reads mid-sentence ("This is …"), when `label` alone reads badly. */
-  phrase?: string
   /** One plain-English line for someone who has never heard of it. */
   description: string
 }

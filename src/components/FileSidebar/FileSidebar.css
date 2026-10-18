@@ -1,283 +1,292 @@
+/* Every block sits on one 12px inset; text inside rows starts 8px further in,
+   level with the header titles (20px from the edge). */
 .file-sidebar {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: var(--bg-surface);
+  min-width: 0;
+  background: var(--bg-subtle);
   border-right: 1px solid var(--border);
-  overflow-y: auto;
-}
-
-.file-sidebar__section {
-  padding: 14px 10px 10px;
-}
-
-.file-sidebar__section--recent {
-  border-top: 1px solid var(--border);
 }
 
 .file-sidebar__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  height: 24px;
-  padding: 0 6px;
+  gap: 4px;
+  flex-shrink: 0;
+  height: var(--h-subheader);
+  padding: 0 12px 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.file-sidebar__title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.file-sidebar__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 12px 24px;
+}
+
+.file-sidebar__section {
+  margin-top: 24px;
+}
+
+.file-sidebar__section-header {
+  display: flex;
+  align-items: center;
+  height: var(--h-row);
+  padding-left: 8px;
   margin-bottom: 4px;
 }
 
-.file-sidebar__header .eyebrow {
-  display: inline-flex;
+.file-sidebar__empty {
+  padding: 0 8px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-3);
+}
+
+/* ─────────────────────────────── Open… ─────────────────────────────── */
+.open-menu {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.open-menu__trigger {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 0 8px;
+}
+
+.open-menu__trigger svg {
+  color: var(--text-2);
+}
+
+.open-menu__chevron {
+  margin-left: auto;
+}
+
+.open-menu__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-float);
+  animation: lens-fade 120ms ease-out;
+}
+
+.open-menu__item {
+  display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  width: 100%;
+  height: var(--h-row);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  text-align: left;
+}
+
+.open-menu__item svg {
+  color: var(--text-2);
+}
+
+.open-menu__item:hover,
+.open-menu__item:focus-visible {
+  background: var(--bg-active);
+}
+
+.open-menu__item:focus-visible {
+  outline-offset: -2px;
+}
+
+/* ─────────────────────────── Import summary ─────────────────────────── */
+.import-summary {
+  margin-bottom: 12px;
+  padding: 8px 8px 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-3);
+  animation: lens-fade 160ms ease-out;
+}
+
+.import-summary--busy {
+  padding: 8px 12px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.import-summary__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.import-summary__alert {
+  flex-shrink: 0;
+  margin-top: 6px;
+  color: var(--danger);
+}
+
+.import-summary__headline {
+  flex: 1;
+  min-width: 0;
+  padding-top: 4px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text);
+}
+
+.import-summary__details {
+  margin: 4px 0 4px;
+  padding: 0 8px 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ─────────────────────────────── Tree ─────────────────────────────── */
+.file-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-tree__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: var(--h-row);
+  padding-right: 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  text-align: left;
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
+}
+
+.file-tree__row:hover {
+  background: var(--bg-raised);
+  color: var(--text);
+}
+
+.file-tree__row--active,
+.file-tree__row--active:hover {
+  background: var(--bg-active);
+  color: var(--text);
+}
+
+.file-tree__row:focus-visible {
+  outline-offset: -2px;
+}
+
+.file-tree__icon {
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+
+/* The folder chevron and icon sit 4px apart (row gap is 8px). */
+.file-tree__chevron {
+  flex-shrink: 0;
+  margin-right: -4px;
+  color: var(--text-3);
+  transition: transform 120ms ease-out;
+}
+
+.file-tree__chevron--open {
+  transform: rotate(90deg);
+}
+
+.file-tree__name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.file-sidebar__header-icon {
-  color: var(--text-3);
-}
-
-.file-sidebar__add {
-  width: 22px;
-  height: 22px;
-}
-
-.file-sidebar__muted {
-  margin: 4px 6px 0;
-  color: var(--text-3);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.file-list,
+/* ─────────────────────────────── Recent ─────────────────────────────── */
 .recent-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-}
-
-.file-list__item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  height: 28px;
-  padding: 0 6px;
-  border-radius: var(--radius-sm);
-  color: var(--text-2);
-  text-align: left;
-  transition: background-color 100ms ease, color 100ms ease;
-}
-
-.file-list__item:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-
-.file-list__item--active {
-  background: var(--accent-soft);
-  color: var(--text);
-}
-
-.file-list__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12.5px;
-}
-
-.file-list__tag {
-  flex-shrink: 0;
-  width: 30px;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-align: center;
-  line-height: 16px;
-  border-radius: 3px;
-  color: var(--text-3);
-  background: rgba(255, 255, 255, 0.04);
+  gap: 2px;
 }
 
 .recent-list__item {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 1px;
+  gap: 2px;
   width: 100%;
-  padding: 5px 6px;
+  padding: 4px 8px;
   border-radius: var(--radius-sm);
   text-align: left;
-  color: var(--text-2);
-  transition: background-color 100ms ease, color 100ms ease;
+  transition: background-color 120ms ease-out;
 }
 
 .recent-list__item:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+  background: var(--bg-raised);
 }
 
-.recent-list__item code {
-  font-size: 12px;
-  color: var(--text);
+.recent-list__item:focus-visible {
+  outline-offset: -2px;
+}
+
+.recent-list__code {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text);
 }
 
 .recent-list__concept {
-  font-size: 11px;
-  color: var(--text-3);
-}
-
-/* ─────────────────────────── Open folder / files ─────────────────────────── */
-.file-sidebar__open {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  padding: 0 2px;
-}
-
-.open-button {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 8px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--bg-elevated);
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background-color 120ms ease, border-color 120ms ease;
-}
-
-.open-button:hover {
-  background: var(--bg-hover);
-  border-color: #343b46;
-}
-
-.open-button:focus-within {
-  outline: 2px solid var(--accent-ring);
-  outline-offset: 1px;
-}
-
-.open-button svg {
-  color: var(--text-2);
-  flex-shrink: 0;
-}
-
-/* Visually hidden but still focusable, so the label works from the keyboard. */
-.open-button__input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
+  max-width: 100%;
   overflow: hidden;
-  pointer-events: none;
-}
-
-.file-sidebar__hint {
-  margin: 7px 6px 12px;
-  color: var(--text-3);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-/* ─────────────────────────── Import summary ─────────────────────────── */
-.import-summary {
-  margin: 0 2px 12px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-strong);
-  background: var(--bg-elevated);
-  font-size: 11.5px;
-  line-height: 1.45;
-  color: var(--text-2);
-  animation: lens-fade-up 160ms ease-out;
-}
-
-.import-summary--busy {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
   color: var(--text-3);
 }
 
-.import-summary--empty {
-  border-color: rgba(248, 113, 113, 0.35);
-}
-
-.import-summary__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 6px;
-}
-
-.import-summary__headline {
-  margin: 0;
-  color: var(--text);
-  font-weight: 500;
-}
-
-.import-summary__close {
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  margin: -1px -4px 0 0;
-}
-
-.import-summary__details {
-  margin: 6px 0 0;
-  padding-left: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-/* ─────────────────────────── Folder tree ─────────────────────────── */
-.file-list__item--folder {
-  gap: 5px;
-}
-
-.file-list__chevron {
-  flex-shrink: 0;
-  color: var(--text-3);
-  transition: transform 120ms ease;
-}
-
-.file-list__chevron--open {
-  transform: rotate(90deg);
-}
-
-.file-list__folder-icon {
-  flex-shrink: 0;
-  color: var(--text-3);
-}
-
-.file-sidebar__actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.file-sidebar__text-button {
-  padding: 2px 4px;
-  border-radius: var(--radius-sm);
-  color: var(--text-3);
-  font-size: 11px;
-  transition: color 100ms ease, background-color 100ms ease;
-}
-
-.file-sidebar__text-button:hover {
-  color: var(--text);
-  background: var(--bg-hover);
+/* ─────────────────────────────── Mobile drawer ─────────────────────────────── */
+@media (max-width: 768px) {
+  .file-sidebar {
+    position: fixed;
+    top: var(--h-topbar);
+    bottom: 0;
+    left: 0;
+    z-index: 30;
+    width: min(320px, 85vw);
+    animation: lens-fade 120ms ease-out;
+  }
 }

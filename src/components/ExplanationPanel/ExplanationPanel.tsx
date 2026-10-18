@@ -1,17 +1,12 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
-import type { ExplanationState } from '../../hooks/useExplanation'
-import { EXPLAIN_SHORTCUT } from '../../lib/shortcuts'
-import { normalizeSelection } from '../../lib/selection'
-import type {
-  Explanation,
-  ExplanationErrorCode,
-  RelatedConcept,
-} from '../../types/explanation'
-import type { CodeSelection, LanguageId } from '../../types/workspace'
 import { getLanguage } from '../../data/languages'
-import { AlertIcon, CursorTextIcon, RetryIcon, SendIcon } from '../icons'
-import { LanguageIntro } from '../LanguageBadge/LanguageBadge'
-import { ExplainButton } from '../SelectionActions/SelectionActions'
+import type { ExplanationState } from '../../hooks/useExplanation'
+import { renderProse } from '../../lib/prose'
+import { normalizeSelection } from '../../lib/selection'
+import { EXPLAIN_SHORTCUT } from '../../lib/shortcuts'
+import type { Explanation, ExplanationErrorCode } from '../../types/explanation'
+import type { CodeSelection, LanguageId } from '../../types/workspace'
+import { AlertIcon, ArrowUpIcon, CursorTextIcon, RetryIcon } from '../icons'
 import { ExplanationSection } from './ExplanationSection'
 import { RelatedConcepts } from './RelatedConcepts'
 import './ExplanationPanel.css'
@@ -23,30 +18,45 @@ interface ExplanationPanelProps {
   onExplainSelection: () => void
   onExplainConcept: (label: string) => void
   onRetry: () => void
+  /** Drag handle rendered above the header when the panel is a bottom sheet. */
+  sheetHandle?: ReactNode
 }
 
-const KIND_LABEL: Record<Explanation['kind'], string> = {
-  keyword: 'Keyword',
-  identifier: 'Identifier',
-  call: 'Call',
-  expression: 'Expression',
-  statement: 'Statement',
-  literal: 'Literal',
-  operator: 'Operator',
-  declaration: 'Declaration',
-  element: 'Element',
-  property: 'Property',
-  selector: 'Selector',
-  type: 'Type',
-}
+/** Selections this short (and on one line) are shown as a title; longer ones as a code block. */
+const TITLE_MAX_CHARS = 32
+const BLOCK_MAX_LINES = 6
 
-function CodeChip({ code, language }: { code: string; language: LanguageId }) {
-  const trimmed = code.trim()
-  const multiline = trimmed.includes('\n')
+/** What is being explained: the code as a title (or block), plus one line under it. */
+function Subject({
+  code,
+  language,
+  detail,
+}: {
+  code: string
+  language: LanguageId
+  detail: ReactNode
+}) {
+  const text = code.trim()
+  const lines = text.split('\n')
+  const asTitle = lines.length === 1 && text.length <= TITLE_MAX_CHARS
+  const lang = getLanguage(language)
   return (
-    <div className={`code-chip${multiline ? ' code-chip--block' : ''}`}>
-      <pre className="code-chip__code">{trimmed}</pre>
-      <span className="code-chip__lang">{getLanguage(language).tag}</span>
+    <div className="subject">
+      {asTitle ? (
+        <h3 className="subject__title">{text}</h3>
+      ) : (
+        <pre
+          className={`subject__code${lines.length > BLOCK_MAX_LINES ? ' subject__code--clipped' : ''}`}
+        >
+          {text}
+        </pre>
+      )}
+      {detail}
+      {language !== 'plaintext' && (
+        <p className="subject__language">
+          <span className="subject__language-name">{lang.label}</span> {lang.description}
+        </p>
+      )}
     </div>
   )
 }
@@ -54,74 +64,38 @@ function CodeChip({ code, language }: { code: string; language: LanguageId }) {
 function EmptyState() {
   return (
     <div className="panel-empty">
-      <div className="panel-empty__icon">
-        <CursorTextIcon size={20} />
-      </div>
-      <p className="panel-empty__title">Select some code to inspect it.</p>
+      <CursorTextIcon size={20} className="panel-empty__icon" />
+      <p className="panel-empty__title">Select some code to explain it</p>
       <p className="panel-empty__hint">
-        Highlight a keyword, a name, a function call, or a whole line. Then press{' '}
-        <kbd className="kbd">{EXPLAIN_SHORTCUT}</kbd> or click{' '}
-        <strong>Explain</strong>.
+        Highlight a keyword, a name, a call or a whole line, then press{' '}
+        <kbd className="kbd">{EXPLAIN_SHORTCUT}</kbd> or click Explain.
       </p>
     </div>
   )
 }
 
-function SelectedState({
-  selection,
-  language,
-  onExplain,
-}: {
-  selection: CodeSelection
-  language: LanguageId
-  onExplain: () => void
-}) {
-  return (
-    <div className="panel-selected">
-      <div className="panel-head">
-        <span className="eyebrow">Selected</span>
-        <CodeChip code={selection.text} language={language} />
-      </div>
-      <ExplainButton
-        size="md"
-        label="Explain this"
-        showShortcut
-        onClick={onExplain}
-        className="panel-selected__button"
-      />
-      <p className="panel-selected__hint">
-        You&rsquo;ll get a plain-language explanation, the precise definition, and
-        why this code is here.
-      </p>
-    </div>
-  )
-}
-
+/** Mirrors the loaded layout: a lead pair, then three heading + body groups. */
 function LoadingState() {
   return (
-    <div className="panel-skeleton" aria-busy="true" aria-label="Generating explanation">
-      {[3, 2, 4, 2].map((lines, section) => (
-        <div className="panel-skeleton__section" key={section}>
-          <div className="panel-skeleton__eyebrow" />
-          {Array.from({ length: lines }).map((_, i) => (
-            <div
-              key={i}
-              className="panel-skeleton__line"
-              style={{ width: i === lines - 1 ? '55%' : `${88 - i * 6}%` }}
-            />
-          ))}
+    <div className="panel-skeleton" aria-hidden="true">
+      <div className="panel-skeleton__group">
+        <span className="skeleton skeleton--lead" style={{ width: '92%' }} />
+        <span className="skeleton skeleton--lead" style={{ width: '64%' }} />
+      </div>
+      {[0, 1, 2].map((group) => (
+        <div className="panel-skeleton__group" key={group}>
+          <span className="skeleton skeleton--heading" />
+          <span className="skeleton" style={{ width: '96%' }} />
+          <span className="skeleton" style={{ width: `${72 - group * 8}%` }} />
         </div>
       ))}
     </div>
   )
 }
 
-/**
- * Every `ExplanationErrorCode` gets a suggestion, so a failure coming from a
- * real API is presented sensibly instead of always blaming the selection.
- */
+/** A next step for every `ExplanationErrorCode`, shown under the message. */
 const ERROR_HINT: Record<ExplanationErrorCode, string> = {
-  not_found: 'Try selecting a smaller piece, like a single keyword or function call.',
+  not_configured: 'LensCode needs an API key before it can explain code. The README shows where it goes.',
   aborted: 'The request was cancelled. Try again.',
   unknown: 'Try again in a moment.',
   network: 'Check your connection, then try again.',
@@ -142,18 +116,14 @@ function ErrorState({
 }) {
   return (
     <div className="panel-error" role="alert">
-      <div className="panel-error__icon">
-        <AlertIcon size={16} />
-      </div>
-      <div className="panel-error__body">
-        <p className="panel-error__title">We couldn&rsquo;t generate an explanation.</p>
-        <p className="panel-error__message">{message}</p>
-        <p className="panel-error__hint">{ERROR_HINT[code] ?? ERROR_HINT.unknown}</p>
-        <button type="button" className="panel-error__retry" onClick={onRetry}>
-          <RetryIcon size={13} />
-          Retry
-        </button>
-      </div>
+      <AlertIcon size={20} className="panel-error__icon" />
+      <p className="panel-error__title">Couldn’t explain this</p>
+      <p className="panel-error__message">{message}</p>
+      <p className="panel-error__hint">{ERROR_HINT[code] ?? ERROR_HINT.unknown}</p>
+      <button type="button" className="btn btn--secondary panel-error__retry" onClick={onRetry}>
+        <RetryIcon />
+        Retry
+      </button>
     </div>
   )
 }
@@ -163,36 +133,30 @@ function LoadedState({
   onConcept,
 }: {
   explanation: Explanation
-  onConcept: (concept: RelatedConcept) => void
+  onConcept: (label: string) => void
 }) {
   return (
-    <div className="panel-loaded" key={explanation.id}>
-      <ExplanationSection title="What is it?" emphasis>
-        {explanation.simpleExplanation}
-      </ExplanationSection>
-      <ExplanationSection title="Technical definition">
-        {explanation.definition}
-      </ExplanationSection>
-      <ExplanationSection title="In this code">
-        {explanation.contextualExplanation}
-      </ExplanationSection>
-      <ExplanationSection title="Why is it here?">
-        {explanation.whyItExists}
-      </ExplanationSection>
-      <ExplanationSection title="Related concepts">
-        <RelatedConcepts concepts={explanation.relatedConcepts} onSelect={onConcept} />
-      </ExplanationSection>
+    <div className="panel-loaded">
+      <p className="panel-lead">{renderProse(explanation.simpleExplanation)}</p>
+      <ExplanationSection title="Technical definition">{explanation.definition}</ExplanationSection>
+      <ExplanationSection title="In this code">{explanation.contextualExplanation}</ExplanationSection>
+      <ExplanationSection title="Why it’s here">{explanation.whyItExists}</ExplanationSection>
+      {explanation.relatedConcepts.length > 0 && (
+        <ExplanationSection title="Related concepts">
+          <RelatedConcepts concepts={explanation.relatedConcepts} onSelect={onConcept} />
+        </ExplanationSection>
+      )}
     </div>
   )
 }
 
-function AskAboutThis({ explanation }: { explanation: Explanation | null }) {
+/** Follow-up box; only shown once there is an explanation to ask about. */
+function AskComposer() {
   // State resets whenever the parent remounts this with a new `key`
   // (one per explanation), so no effect is needed.
   const [question, setQuestion] = useState('')
   const [asked, setAsked] = useState<string | null>(null)
-
-  const disabled = !explanation
+  const ready = question.trim().length > 0
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -208,30 +172,27 @@ function AskAboutThis({ explanation }: { explanation: Explanation | null }) {
         <div className="panel-ask__thread">
           <p className="panel-ask__question">{asked}</p>
           <p className="panel-ask__answer">
-            Follow-up answers aren&rsquo;t available in this preview yet. The
-            explanation engine will answer here once it&rsquo;s connected.
+            Follow-up answers aren’t available in this preview yet. The explanation
+            engine will answer here once it’s connected.
           </p>
         </div>
       )}
-      <form className="panel-ask__form" onSubmit={submit}>
+      <form className="composer" onSubmit={submit}>
         <input
-          className="panel-ask__input"
+          className="composer__input"
           type="text"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder={
-            disabled ? 'Explain something to ask about it' : 'Ask about this…'
-          }
-          disabled={disabled}
+          placeholder="Ask a follow-up…"
           aria-label="Ask a follow-up question"
         />
         <button
           type="submit"
-          className="panel-ask__send icon-button"
-          disabled={disabled || !question.trim()}
+          className={`icon-btn composer__send${ready ? ' composer__send--ready' : ''}`}
+          disabled={!ready}
           aria-label="Send question"
         >
-          <SendIcon size={14} />
+          <ArrowUpIcon />
         </button>
       </form>
     </div>
@@ -245,6 +206,7 @@ export function ExplanationPanel({
   onExplainSelection,
   onExplainConcept,
   onRetry,
+  sheetHandle,
 }: ExplanationPanelProps) {
   const { status, request, explanation, error } = state
   const hasSelection = Boolean(selection?.text.trim())
@@ -256,36 +218,31 @@ export function ExplanationPanel({
       normalizeSelection(selection.text) !== normalizeSelection(request.selectedCode))
 
   let body: ReactNode
-  if (status === 'idle') {
+  if (status === 'idle' || !request) {
     body =
       hasSelection && selection ? (
-        <SelectedState
-          selection={selection}
+        <Subject
+          code={selection.text}
           language={language}
-          onExplain={onExplainSelection}
+          detail={
+            <p className="subject__detail subject__detail--hint">
+              Press {EXPLAIN_SHORTCUT} or click Explain
+            </p>
+          }
         />
       ) : (
         <EmptyState />
       )
   } else {
+    const detail =
+      status === 'loaded' && explanation ? (
+        <p className="subject__detail">{explanation.concept}</p>
+      ) : status === 'loading' ? (
+        <span className="skeleton skeleton--detail" aria-hidden="true" />
+      ) : null
     body = (
       <>
-        <div className="panel-head">
-          <div className="panel-head__row">
-            <span className="eyebrow">Explaining</span>
-            {status === 'loaded' && explanation && (
-              <span className="panel-head__kind" title={KIND_LABEL[explanation.kind]}>
-                {explanation.concept}
-              </span>
-            )}
-            {status === 'loading' && (
-              <span className="panel-head__kind panel-head__kind--pending">
-                Analysing…
-              </span>
-            )}
-          </div>
-          {request && <CodeChip code={request.selectedCode} language={request.language} />}
-        </div>
+        <Subject code={request.selectedCode} language={request.language} detail={detail} />
         {status === 'loading' && <LoadingState />}
         {status === 'error' && (
           <ErrorState
@@ -295,35 +252,45 @@ export function ExplanationPanel({
           />
         )}
         {status === 'loaded' && explanation && (
-          <LoadedState
-            explanation={explanation}
-            onConcept={(c) => onExplainConcept(c.label)}
-          />
+          <LoadedState explanation={explanation} onConcept={onExplainConcept} />
         )}
       </>
     )
   }
 
+  const empty = status === 'idle' && !hasSelection
+
   return (
-    <aside className="explanation-panel" aria-label="Explanation">
+    <aside className="explanation-panel" aria-label="Explanation" aria-busy={status === 'loading'}>
+      {sheetHandle}
+      <header className="panel-header">
+        <h2 className="panel-header__title">Explanation</h2>
+        {status === 'loading' && <span className="panel-header__status">Explaining…</span>}
+      </header>
       {status !== 'idle' && selectionIsNew && selection && (
         <div className="panel-new-selection">
-          <span className="panel-new-selection__label">New selection</span>
+          <span className="panel-new-selection__label">New selection:</span>
           <code className="panel-new-selection__code">
             {selection.text.replace(/\s+/g, ' ').trim()}
           </code>
-          <ExplainButton onClick={onExplainSelection} />
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={onExplainSelection}
+            title={`Explain the new selection (${EXPLAIN_SHORTCUT})`}
+          >
+            Explain
+          </button>
         </div>
       )}
-      <div className="explanation-panel__scroll">
-        {/* Always say what language this is first — readers may not know. */}
-        <LanguageIntro language={status === 'idle' || !request ? language : request.language} />
+      <div
+        className={`panel-scroll${empty ? ' panel-scroll--centered' : ''}`}
+        // A new state or answer starts at the top, with a short fade.
+        key={status === 'loaded' && explanation ? explanation.id : status}
+      >
         {body}
       </div>
-      <AskAboutThis
-        key={status === 'loaded' && explanation ? explanation.id : 'none'}
-        explanation={status === 'loaded' ? explanation : null}
-      />
+      {status === 'loaded' && explanation && <AskComposer key={`ask:${explanation.id}`} />}
     </aside>
   )
 }

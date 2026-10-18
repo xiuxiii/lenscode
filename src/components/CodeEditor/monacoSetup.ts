@@ -9,6 +9,33 @@ import tsWorker from 'monaco-editor/language/typescript/ts.worker?worker'
 
 export const LENS_THEME = 'lenscode-dark'
 
+/** Must match `--font-mono` in index.css (Monaco can't read CSS variables). */
+export const EDITOR_FONT_FAMILY =
+  "'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace"
+
+/**
+ * The editor palette. Neutral surfaces and text mirror the tokens in
+ * index.css; syntax uses at most four hues, each at least 4.5:1 on BG.
+ */
+const BG = '#0a0a0a' // --bg
+const RAISED = '#1a1a1a' // --bg-raised
+const TEXT = '#ededed' // --text: identifiers (16.9:1)
+const TEXT_2 = '#a1a1a1' // --text-2: punctuation, operators (7.7:1)
+const COMMENT = '#7d7d7d' // 4.8:1, upright (no faux italic)
+const LINE_NUMBER = '#5e5e5e'
+const KEYWORD = '#c4a1ff' // 9.3:1
+const STRING = '#8fd4a6' // 11.4:1
+const TYPE = '#79b8ff' // 9.5:1: types, tags, keys, properties
+const NUMBER = '#f2b46d' // 10.9:1: numbers, constants, CSS values
+const ACCENT = '#0070f3' // --accent
+const SELECTION = '#0070f34d' // --selection (30%)
+const BORDER = '#ffffff14' // --border (8%)
+const BORDER_STRONG = '#ffffff25' // --border-strong (14.5%)
+const ACTIVE = '#ffffff10' // --bg-active (6%)
+
+/** Theme rules take colours without the leading '#'. */
+const fg = (color: string) => color.slice(1)
+
 let configured = false
 
 /**
@@ -44,73 +71,106 @@ export function configureMonaco(): void {
 
   loader.config({ monaco })
 
+  // Bracket-pair colorisation is a *text model* option in standalone Monaco:
+  // the editor's `bracketPairColorization` option never reaches models made
+  // with createModel (which @monaco-editor/react uses), and the model service
+  // re-applies its default (on) whenever the editor configuration changes —
+  // including when an editor is created. So each model switches it off on
+  // creation and again whenever anything turns it back on.
+  monaco.editor.onDidCreateModel((model) => {
+    const keepOff = () => {
+      if (!model.getOptions().bracketPairColorizationOptions.enabled) return
+      model.updateOptions({
+        bracketColorizationOptions: { enabled: false, independentColorPoolPerBracketType: false },
+      })
+    }
+    keepOff()
+    model.onDidChangeOptions(keepOff)
+  })
+
   monaco.editor.defineTheme(LENS_THEME, {
     base: 'vs-dark',
     inherit: true,
     rules: [
-      { token: '', foreground: 'd7dce4' },
-      { token: 'comment', foreground: '5d6774', fontStyle: 'italic' },
-      { token: 'keyword', foreground: 'c792ea' },
-      { token: 'keyword.json', foreground: '7c9cff' },
-      { token: 'storage', foreground: 'c792ea' },
-      { token: 'type', foreground: '7fd1e6' },
-      { token: 'type.identifier', foreground: '7fd1e6' },
-      { token: 'identifier', foreground: 'd7dce4' },
-      { token: 'string', foreground: '9ad19d' },
-      { token: 'string.key.json', foreground: '7c9cff' },
-      { token: 'string.value.json', foreground: '9ad19d' },
-      { token: 'number', foreground: 'f2b56b' },
-      { token: 'delimiter', foreground: '8b94a3' },
-      { token: 'delimiter.bracket', foreground: '8b94a3' },
-      { token: 'tag', foreground: '7c9cff' },
-      { token: 'metatag', foreground: '7c9cff' },
-      { token: 'attribute.name', foreground: 'c792ea' },
-      { token: 'attribute.value', foreground: '9ad19d' },
-      { token: 'attribute.value.html', foreground: '9ad19d' },
-      { token: 'attribute.name.css', foreground: '7fd1e6' },
-      { token: 'attribute.value.css', foreground: 'f2b56b' },
-      { token: 'attribute.value.number.css', foreground: 'f2b56b' },
-      { token: 'attribute.value.unit.css', foreground: 'f2b56b' },
-      { token: 'attribute.value.hex.css', foreground: 'f2b56b' },
-      { token: 'tag.css', foreground: 'f6c177' },
-      { token: 'variable', foreground: '7fd1e6' },
-      { token: 'operator', foreground: '8b94a3' },
+      { token: '', foreground: fg(TEXT) },
+      { token: 'comment', foreground: fg(COMMENT) },
+      { token: 'keyword', foreground: fg(KEYWORD) },
+      { token: 'keyword.json', foreground: fg(KEYWORD) },
+      { token: 'storage', foreground: fg(KEYWORD) },
+      { token: 'type', foreground: fg(TYPE) },
+      { token: 'type.identifier', foreground: fg(TYPE) },
+      { token: 'predefined', foreground: fg(TYPE) },
+      { token: 'identifier', foreground: fg(TEXT) },
+      { token: 'variable', foreground: fg(TYPE) },
+      { token: 'string', foreground: fg(STRING) },
+      { token: 'string.key.json', foreground: fg(TYPE) },
+      { token: 'string.value.json', foreground: fg(STRING) },
+      { token: 'regexp', foreground: fg(STRING) },
+      { token: 'number', foreground: fg(NUMBER) },
+      { token: 'constant', foreground: fg(NUMBER) },
+      { token: 'delimiter', foreground: fg(TEXT_2) },
+      { token: 'delimiter.bracket', foreground: fg(TEXT_2) },
+      { token: 'delimiter.parenthesis', foreground: fg(TEXT_2) },
+      { token: 'delimiter.square', foreground: fg(TEXT_2) },
+      { token: 'delimiter.html', foreground: fg(TEXT_2) },
+      { token: 'operator', foreground: fg(TEXT_2) },
+      { token: 'tag', foreground: fg(TYPE) },
+      { token: 'metatag', foreground: fg(KEYWORD) },
+      { token: 'annotation', foreground: fg(KEYWORD) },
+      { token: 'attribute.name', foreground: fg(KEYWORD) },
+      { token: 'attribute.value', foreground: fg(STRING) },
+      { token: 'attribute.value.html', foreground: fg(STRING) },
+      { token: 'attribute.name.css', foreground: fg(TYPE) },
+      { token: 'attribute.value.css', foreground: fg(NUMBER) },
+      { token: 'attribute.value.number.css', foreground: fg(NUMBER) },
+      { token: 'attribute.value.unit.css', foreground: fg(NUMBER) },
+      { token: 'attribute.value.hex.css', foreground: fg(NUMBER) },
+      { token: 'tag.css', foreground: fg(KEYWORD) },
     ],
     colors: {
-      'editor.background': '#0e1116',
-      'editor.foreground': '#d7dce4',
-      'editorLineNumber.foreground': '#3a4250',
-      'editorLineNumber.activeForeground': '#7c8594',
-      'editorCursor.foreground': '#7c9cff',
-      'editor.selectionBackground': '#7c9cff4d',
-      'editor.inactiveSelectionBackground': '#7c9cff2a',
+      'editor.background': BG,
+      'editor.foreground': TEXT,
+      'editorLineNumber.foreground': LINE_NUMBER,
+      'editorLineNumber.activeForeground': TEXT_2,
+      'editorCursor.foreground': ACCENT,
+      'editor.selectionBackground': SELECTION,
+      'editor.inactiveSelectionBackground': '#0070f326',
       'editor.selectionHighlightBackground': '#00000000',
       'editor.lineHighlightBackground': '#ffffff06',
       'editor.lineHighlightBorder': '#00000000',
-      'editorIndentGuide.background1': '#1e232b',
-      'editorIndentGuide.activeBackground1': '#2f3742',
-      'editorBracketMatch.background': '#7c9cff26',
-      'editorBracketMatch.border': '#7c9cff66',
-      'editorWidget.background': '#171b22',
-      'editorWidget.border': '#2a3039',
-      'editorSuggestWidget.background': '#171b22',
-      'editorSuggestWidget.border': '#2a3039',
-      'editorSuggestWidget.selectedBackground': '#1f2836',
-      'editorHoverWidget.background': '#171b22',
-      'editorHoverWidget.border': '#2a3039',
-      'scrollbarSlider.background': '#2a303980',
-      'scrollbarSlider.hoverBackground': '#2a3039c0',
-      'scrollbarSlider.activeBackground': '#3a4250',
-      'editorGutter.background': '#0e1116',
-      'editor.findMatchBackground': '#f2b56b55',
-      'editor.findMatchHighlightBackground': '#f2b56b2a',
-      'minimap.background': '#0e1116',
-      'menu.background': '#171b22',
-      'menu.foreground': '#d7dce4',
-      'menu.selectionBackground': '#1f2836',
-      'menu.border': '#2a3039',
-      'menu.separatorBackground': '#2a3039',
-      'focusBorder': '#7c9cff66',
+      'editorIndentGuide.background1': BORDER,
+      'editorIndentGuide.activeBackground1': BORDER_STRONG,
+      'editorBracketMatch.background': ACTIVE,
+      'editorBracketMatch.border': BORDER_STRONG,
+      // Backstop: even if colorisation turns on, brackets stay punctuation-grey.
+      'editorBracketHighlight.foreground1': TEXT_2,
+      'editorBracketHighlight.foreground2': TEXT_2,
+      'editorBracketHighlight.foreground3': TEXT_2,
+      'editorBracketHighlight.foreground4': TEXT_2,
+      'editorBracketHighlight.foreground5': TEXT_2,
+      'editorBracketHighlight.foreground6': TEXT_2,
+      'editorBracketHighlight.unexpectedBracket.foreground': TEXT_2,
+      'editorWidget.background': RAISED,
+      'editorWidget.border': BORDER_STRONG,
+      'editorSuggestWidget.background': RAISED,
+      'editorSuggestWidget.border': BORDER_STRONG,
+      'editorSuggestWidget.selectedBackground': ACTIVE,
+      'editorHoverWidget.background': RAISED,
+      'editorHoverWidget.border': BORDER_STRONG,
+      'scrollbarSlider.background': '#ffffff1a',
+      'scrollbarSlider.hoverBackground': '#ffffff26',
+      'scrollbarSlider.activeBackground': '#ffffff33',
+      'editorGutter.background': BG,
+      'editor.findMatchBackground': '#0070f366',
+      'editor.findMatchHighlightBackground': '#0070f326',
+      'minimap.background': BG,
+      'menu.background': RAISED,
+      'menu.foreground': TEXT,
+      'menu.selectionBackground': ACTIVE,
+      'menu.selectionForeground': TEXT,
+      'menu.border': BORDER_STRONG,
+      'menu.separatorBackground': BORDER,
+      'focusBorder': ACCENT,
     },
   })
 
@@ -126,9 +186,15 @@ export function configureMonaco(): void {
     target: monaco.typescript.ScriptTarget.ESNext,
   })
 
-  // Web fonts can finish loading after the editor measured its glyphs.
+  // Self-hosted fonts load on first use, which can be after Monaco measured
+  // its glyphs: load the editor faces explicitly, then remeasure.
   if (typeof document !== 'undefined' && 'fonts' in document) {
-    document.fonts.ready.then(() => monaco.editor.remeasureFonts()).catch(() => {})
+    Promise.all([
+      document.fonts.load("400 13px 'Geist Mono'"),
+      document.fonts.load("600 13px 'Geist Mono'"),
+    ])
+      .then(() => monaco.editor.remeasureFonts())
+      .catch(() => {})
   }
 }
 

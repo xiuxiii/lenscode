@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react'
-import { explainCode, explanationEngineName } from '../services/explanationService'
+import { explainCode } from '../services/explanationService'
 import {
   ExplanationError,
   type Explanation,
@@ -157,6 +157,5 @@ export function useExplanation(initialHistory: Explanation[] = []) {
     reset,
     show,
     clearHistory,
-    providerName: explanationEngineName,
   }
 }

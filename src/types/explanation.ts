@@ -29,12 +29,12 @@ export interface RelatedConcept {
  * The shape an explanation API is expected to return: the contract between
  * the explanation service and the explanation panel.
  *
- * Visual components render this object and nothing else, so swapping the mock
- * provider for a real backend must not touch the UI.
+ * Visual components render this object and nothing else, so changing the
+ * model or backend must not touch the UI.
  *
  * Canonical section names map onto these fields as follows — a backend is
  * free to use either vocabulary as long as the service layer returns *this*
- * one (see `src/services/explanationProviders/httpProvider.ts`):
+ * one (see `src/services/parseExplanation.ts`):
  *
  *   title                 → concept
  *   whatIsIt              → simpleExplanation
@@ -110,13 +110,11 @@ export interface ExplanationRequest {
   projectContext?: ProjectContext
 }
 
-/**
- * Why an explanation failed. The first three are produced today; the rest
- * exist so an HTTP-backed provider can report failures precisely without the
- * UI needing to change.
- */
+/** Why an explanation failed; the panel shows a suggestion for each. */
 export type ExplanationErrorCode =
-  | 'not_found'
+  /** The server has no LLM_API_KEY. */
+  | 'not_configured'
+  /** Superseded by a newer request; never shown. */
   | 'aborted'
   | 'unknown'
   /** The request never reached the backend (offline, DNS, CORS). */
@@ -139,21 +137,7 @@ export class ExplanationError extends Error {
   }
 }
 
-/** Options every provider accepts. */
 export interface ExplainOptions {
   /** Cancels an in-flight explanation (the UI aborts superseded requests). */
   signal?: AbortSignal
-}
-
-/**
- * Contract for anything that can produce explanations: the local mock today,
- * an HTTP client talking to an LLM-backed endpoint later.
- *
- * A provider is an implementation detail of the service layer. The UI never
- * imports one directly — it calls `explainCode()`.
- */
-export interface ExplanationProvider {
-  /** Short label surfaced in the status bar. */
-  readonly name: string
-  explain(request: ExplanationRequest, options?: ExplainOptions): Promise<Explanation>
 }

@@ -5,16 +5,13 @@ import { createExplainHandler } from './explain/handler.ts'
 
 /**
  * Serves `POST /api/explain` from the Vite dev server (`npm run dev`) and the
- * preview server (`npm run preview`), and points the client at it.
+ * preview server (`npm run preview`).
  *
- * - The LLM key is read here, in Node, via `loadEnv(mode, root, '')`. It is
- *   never `define`d, so it cannot reach the browser bundle.
- * - The client is switched from the mock to this route by defining
- *   `VITE_EXPLANATION_API_URL` — a path, not a secret — whenever a key is
- *   present. An explicit `VITE_EXPLANATION_API_URL` always wins.
+ * The LLM key is read here, in Node, via `loadEnv(mode, root, '')`. It is
+ * never `define`d, so it cannot reach the browser bundle.
  */
 
-export const EXPLAIN_ROUTE = '/api/explain'
+const EXPLAIN_ROUTE = '/api/explain'
 const MAX_BODY_BYTES = 1_000_000
 
 function readBody(req: IncomingMessage): Promise<Buffer | null> {
@@ -94,21 +91,12 @@ export function explainApi(): Plugin {
       const envDir = typeof userConfig.envDir === 'string' ? userConfig.envDir : root
       // '' prefix: load every variable, including the server-only LLM_* ones.
       const env = loadEnv(mode, envDir, '')
-      const llm = readLlmConfig(env)
 
       const handle = createExplainHandler({
-        config: llm,
+        config: readLlmConfig(env),
         log: (message) => console.warn(message),
       })
       middleware = createMiddleware(handle)
-
-      if (llm && !env.VITE_EXPLANATION_API_URL) {
-        return {
-          define: {
-            'import.meta.env.VITE_EXPLANATION_API_URL': JSON.stringify(EXPLAIN_ROUTE),
-          },
-        }
-      }
     },
 
     configureServer(server) {

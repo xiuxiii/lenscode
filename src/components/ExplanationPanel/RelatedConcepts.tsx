@@ -1,23 +1,26 @@
 import type { RelatedConcept } from '../../types/explanation'
+import { ArrowRightIcon } from '../icons'
 
 interface RelatedConceptsProps {
   concepts: RelatedConcept[]
-  onSelect: (concept: RelatedConcept) => void
+  onSelect: (label: string) => void
 }
 
+/** "What to learn next", as rows like a docs page's next links. */
 export function RelatedConcepts({ concepts, onSelect }: RelatedConceptsProps) {
-  if (concepts.length === 0) return null
   return (
-    <ul className="related-concepts" aria-label="Related concepts">
+    <ul className="related" aria-label="Related concepts">
       {concepts.map((concept) => (
         <li key={concept.label}>
           <button
             type="button"
-            className="related-concepts__chip"
-            title={concept.hint ? `${concept.hint} — click to explain` : 'Click to explain'}
-            onClick={() => onSelect(concept)}
+            className="related__row"
+            onClick={() => onSelect(concept.label)}
+            title={`Explain “${concept.label}”`}
           >
-            <code>{concept.label}</code>
+            <span className="related__name">{concept.label}</span>
+            {concept.hint && <span className="related__hint">{concept.hint}</span>}
+            <ArrowRightIcon size={14} className="related__arrow" />
           </button>
         </li>
       ))}

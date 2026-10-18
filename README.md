@@ -2,7 +2,7 @@
 
 **Google Lens for code.** Paste code, highlight any part of it, and get a plain-language explanation of exactly what you are looking at.
 
-A polished, fully interactive frontend with a small LLM-backed explanation route. Explanations come from DeepSeek (or any OpenAI-compatible model) when a server-side API key is configured, and from a built-in mock catalog when it is not. There is no database, auth or user accounts.
+A polished, fully interactive frontend with a small LLM-backed explanation route. Explanations come from DeepSeek (or any OpenAI-compatible model) using a server-side API key. There is no database, auth or user accounts.
 
 ## Core flow
 
@@ -10,10 +10,10 @@ A polished, fully interactive frontend with a small LLM-backed explanation route
 PASTE CODE → SELECT CODE → EXPLAIN → READ EXPLANATION
 ```
 
-1. The app opens directly into the workspace with a realistic starter file. Use **Open folder** or **Open files** (or drag them onto the window) to load your own code, or click **+** for a blank file and paste any code or terminal command into it.
-2. The language is detected automatically from the code. There is nothing to choose. The toolbar badge and the top of the explanation panel say what it is, in plain English.
+1. The app opens directly into the workspace with a realistic starter file. Use **Open…** in the sidebar to load a folder or individual files (or drag them onto the window), or click **+** for a blank file and paste any code or terminal command into it.
+2. The language is detected automatically from the code. There is nothing to choose. The editor's tab bar names it, and the explanation says in one plain-English line what that language is.
 3. Highlight a keyword, a name, a call, a command, or a whole line in the editor.
-4. A small **Explain** pill appears next to the selection. Click it, press `⌘E` / `Ctrl+E`, use the editor context menu, or click the persistent **Explain** button in the toolbar.
+4. A small **Explain** pill appears just above the selection. Click it, press `⌘E` / `Ctrl+E`, use the editor context menu, or click **Explain** in the tab bar.
 5. The explanation panel on the right shows what it is, the technical definition, what it does in this code, why it is here, and related concepts to learn next.
 6. Click a related concept to explain that next. The sidebar keeps a short history of what you have explained.
 
@@ -29,7 +29,7 @@ npm run lint
 
 Node 20.3+ is required for the API route; 22 is recommended.
 
-### Turning on real explanations (DeepSeek)
+### Adding your API key (DeepSeek)
 
 ```bash
 cp .env.example .env.local
@@ -37,13 +37,25 @@ cp .env.example .env.local
 npm run dev
 ```
 
-The status bar switches from **Local mock** to **API**. Remove the key to go back to the mock. `.env.local` is gitignored.
+Without a key the app still opens, but **Explain** shows "No LLM_API_KEY is configured" with instructions. `.env.local` is gitignored.
 
 ## Stack
 
 - React 19 + TypeScript, built with Vite
 - Monaco Editor (bundled locally, no CDN), with web workers for JS/TS, HTML, CSS and JSON
 - Plain CSS with design tokens; no UI framework
+- Geist Sans and Geist Mono, self-hosted via `@fontsource` (no font CDN)
+
+## Design system
+
+All tokens live in the `:root` block of `src/index.css`; component CSS uses tokens only (no raw colours). The Monaco theme in `CodeEditor/monacoSetup.ts` mirrors the same values, because Monaco can't read CSS variables.
+
+- **Type:** integer sizes only — 12 (meta), 13 (rows, controls, headings), 14 (body, buttons), 16 (the lead answer), 20 (the selected-symbol title). Weights 400 and 500; 600 only for the title and the wordmark.
+- **Colour:** zero-chroma greys (`#0a0a0a` / `#111` / `#1a1a1a`, hairlines at 8% and 14.5% white). Text is `#ededed` / `#a1a1a1` / `#878787`, all at least 4.5:1 where used. Blue (`#0070f3`) is only for focus rings, the editor cursor and selection, the explained-range underline and the resizer line on hover or drag. Regions are separated by hairlines; the only shadows are on the floating pill and the **Open…** menu. Primary buttons are light with dark text and rare: the mobile **Explain** button, and the send arrow once there is a question.
+- **Shape:** radius 6 for controls and rows, 8 for cards, menus and the composer, 4 for inline code and kbd, 12 only for the mobile sheet. Controls are 28 or 32px high (40 for the composer and the mobile Explain button); the top bar is 48px and every column header 40px, so their borders form one line.
+- **Buttons:** `.btn--primary`, `.btn--secondary`, `.btn--ghost` and `.icon-btn`, defined once in `index.css`. Shortcuts live in tooltips, not inside buttons.
+- **Editor:** at most four syntax hues (keywords, strings, types/tags, numbers), each at least 8:1 on the background; punctuation grey, comments upright. Bracket-pair colourisation is switched off at the *model* level in `monacoSetup.ts`: in standalone Monaco the editor option alone doesn't reach models.
+- **Mobile (≤768px):** the sidebar becomes a drawer, the panel a draggable bottom sheet (45–85% tall), and a fixed **Explain** button appears with a selection.
 
 ## Project structure
 
@@ -57,28 +69,23 @@ server/                 Runs in Node only; never bundled for the browser
     config.ts           LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
 src/
   components/
-    AppShell/           Layout grid, workspace + explanation state wiring, panel resizer
-    TopBar/             Brand, project switcher placeholder, settings
-    FileSidebar/        Open folder / files, import summary, folder tree, recent explanations
+    AppShell/           Layout grid, state wiring, panel resizer, mobile drawer + bottom sheet
+    TopBar/             Sidebar toggle, logo, project name
+    FileSidebar/        "Open…" menu, import summary, folder tree, recent explanations
       FileTree          Collapsible tree built from file paths
-    CodeEditor/         Monaco wrapper, selection tracking, floating action, theme + workers
-      EditorToolbar     File name, detected-language badge, persistent Explain button
-    LanguageBadge/      Read-only language badge (toolbar) + plain-English intro (panel)
-    SelectionActions/   Floating "Explain" pill + shared ExplainButton
-    ExplanationPanel/   All panel states (empty, selected, loading, loaded, error) + "Ask about this"
+    CodeEditor/         Monaco wrapper, selection tracking, pill placement, theme + workers
+      EditorToolbar     Tab bar: file name, detected language, Explain
+    SelectionActions/   The floating "Explain" pill
+    ExplanationPanel/   All panel states (empty, selected, loading, loaded, error) + follow-up composer
       ExplanationSection, RelatedConcepts
-    StatusBar/          Engine, status, cursor, selection, language, file
   hooks/
     useExplanation.ts   Reducer-based state machine (idle → loading → loaded | error) with cancellation
     useWorkspace.ts     The project: name, files (by path), active file, open/add/close
     useSessionPersistence.ts  Autosaves the workspace and history (debounced, flushed on page hide)
   services/
     explanationService.ts       explainCode() — the only door between UI and AI
-    explanationProviders/
-      mockProvider.ts           Local catalog lookup (used when no key is set)
-      httpProvider.ts           Client for /api/explain (used when a key is set)
+    parseExplanation.ts         Validates answers (shared with the server)
   data/
-    mockExplanations.ts     Curated explanation catalog (JS/TS, Python, HTML, CSS, JSON)
     starterFiles.ts         Files that open by default
     languages.ts            Supported languages, colours and one-line beginner descriptions
   lib/
@@ -86,7 +93,7 @@ src/
     importFiles.ts          Reads opened / dropped files and folders, with safety filtering
     sessionStore.ts         Saves / restores the project and history in this browser (IndexedDB)
   types/
-    explanation.ts          Explanation, ExplanationRequest, ExplanationProvider
+    explanation.ts          Explanation, ExplanationRequest, ExplanationError
     workspace.ts            WorkspaceFile, CodeSelection, LanguageId
 ```
 
@@ -128,7 +135,7 @@ To add a language, add an entry to `src/data/languages.ts` (its `id` must be a M
 
 ## AI API Integration
 
-*Written for the next developer picking this up. The DeepSeek integration is built and tested against a protocol-compatible stand-in; to switch it on, add a key (see [Turning on real explanations](#turning-on-real-explanations-deepseek)).*
+*Written for the next developer picking this up. The DeepSeek integration is built and tested against a protocol-compatible stand-in; it needs a server-side key to answer (see [Adding your API key](#adding-your-api-key-deepseek)).*
 
 ### Where the boundary is
 
@@ -138,7 +145,7 @@ To add a language, add an entry to `src/data/languages.ts` (its `id` must be a M
 const explanation = await explainCode(request, { signal })
 ```
 
-The UI calls it through `useExplanation()` and nowhere else. It does **not** know which provider answers, whether HTTP is involved, what endpoint is hit, how auth works, which model runs, or how the prompt is built. Keep it that way: everything provider-specific stays behind this module.
+The UI calls it through `useExplanation()` and nowhere else. It does **not** know which model runs, how auth works or how the prompt is built. Keep it that way: everything provider-specific stays on the server.
 
 ```
 Code selection (CodeEditor)
@@ -149,16 +156,14 @@ useExplanation()  ── idle → loading → loaded | error, with cancellation
       ↓
 explainCode()                     ← src/services/explanationService.ts
       ↓
-provider   ── mockProvider (no key)  |  httpProvider (key set)
-      ↓                                      ↓
-local catalog                        POST /api/explain   ← server/vitePlugin.ts
-                                               ↓
-                                     server/explain/handler.ts
-                                       validate → prompt.ts → llmClient.ts
-                                               ↓
-                                     DeepSeek /chat/completions (JSON mode)
-                                               ↓
-                                     parseExplanationResponse() — rejects bad answers
+POST /api/explain                 ← server/vitePlugin.ts
+      ↓
+server/explain/handler.ts
+  validate → prompt.ts → llmClient.ts
+      ↓
+DeepSeek /chat/completions (JSON mode)
+      ↓
+parseExplanationResponse()        ← rejects bad answers (server, then browser)
       ↓
 Explanation
       ↓
@@ -190,32 +195,28 @@ One shape, defined as `ExplanationRequest` in `src/types/explanation.ts` and bui
 
 | Canonical name | Field in this codebase | Rendered as |
 | --- | --- | --- |
-| `title` | `concept` | Badge next to the selected code |
-| `whatIsIt` | `simpleExplanation` | **What is it?** |
+| `title` | `concept` | The line under the selected-code title |
+| `whatIsIt` | `simpleExplanation` | The lead answer (large, no heading) |
 | `technicalDefinition` | `definition` | **Technical definition** |
 | `inThisCode` | `contextualExplanation` | **In this code** |
-| `whyItsHere` | `whyItExists` | **Why is it here?** |
-| `relatedConcepts[].name` | `relatedConcepts[].label` | Clickable chip |
-| `relatedConcepts[].explanation` | `relatedConcepts[].hint` | Chip tooltip |
+| `whyItsHere` | `whyItExists` | **Why it's here** |
+| `relatedConcepts[].name` | `relatedConcepts[].label` | A related-concept row (click to explain it) |
+| `relatedConcepts[].explanation` | `relatedConcepts[].hint` | The row's grey description |
 
-Plus `id`, `selectedCode`, `language` and `kind` (a `ConceptKind` used for the badge label). The internal names are what the components already use, so leave them alone — `httpProvider` accepts **either** vocabulary from the backend and normalizes to the internal one in `parseExplanationResponse()`.
-
-### The current mock
-
-`src/services/explanationProviders/mockProvider.ts` answers from the curated catalog in `src/data/mockExplanations.ts`. It simulates 550–950 ms of latency so the loading state is real, and throws `not_found` for unknown selections so the error state is real. It is used whenever no key is configured, so the app keeps working offline.
+Plus `id`, `selectedCode`, `language` and `kind` (a `ConceptKind`, validated but not currently displayed). The internal names are what the components already use, so leave them alone — `parseExplanationResponse()` accepts **either** vocabulary and normalizes to the internal one.
 
 ### The backend route
 
 `server/` runs only in Node. `server/vitePlugin.ts` mounts `POST /api/explain` on the Vite dev and preview servers, so `npm run dev` is the whole backend locally.
 
-- **Switching.** When `LLM_API_KEY` is present, the plugin defines `VITE_EXPLANATION_API_URL=/api/explain` for the client, and `selectProvider()` in `explanationService.ts` picks `httpProvider`. With no key, nothing is defined and the mock is used. An explicit `VITE_EXPLANATION_API_URL` always wins.
+- **No key.** Without `LLM_API_KEY` the route answers `503` with code `not_configured`, and the panel says how to add one.
 - **Prompt.** `server/explain/prompt.ts` sends the selection plus a window of ±40 lines around it (capped at 12,000 characters), with the selected lines marked. When there is no range (a related-concept click), it sends the top of the file and tells the model the selection may be a concept name. The model is asked for the canonical field names, with identifiers in double quotes, which `renderProse()` already turns into inline code chips.
 - **Model call.** `server/explain/llmClient.ts` POSTs to `{LLM_BASE_URL}/chat/completions` with `response_format: { type: 'json_object' }`, a 40 s timeout, and the browser's abort signal, so a superseded selection cancels the upstream call instead of spending tokens.
 - **Validation.** `handler.ts` rejects malformed requests with a 400, extracts the JSON object even if a model wraps it in a fence, and runs the same `parseExplanationResponse()` the browser uses, so a bad answer becomes a clean `invalid_response` error.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| `LLM_API_KEY` | — | Required to leave the mock. Server only. |
+| `LLM_API_KEY` | — | Required. Server only. |
 | `LLM_BASE_URL` | `https://api.deepseek.com` | Any OpenAI-compatible API, e.g. Ollama at `http://localhost:11434/v1`. |
 | `LLM_MODEL` | `deepseek-chat` | If DeepSeek has renamed its models, the panel says so; set the current name here. |
 | `LLM_TIMEOUT_MS` | `40000` | Kept below the browser's 45 s timeout so the server's clearer error wins. |
@@ -245,17 +246,17 @@ Vite inlines every `VITE_`-prefixed variable into the JavaScript bundle it ships
 
 ### Errors
 
-`explainCode()` rejects with an `ExplanationError` carrying a code: `not_found`, `aborted`, `unknown`, `network`, `timeout`, `rate_limited`, `invalid_response`, `server_error`. `useExplanation` wraps anything unclassified into `unknown`, and the panel has a suggestion for every code, so an API failure is displayed rather than thrown. The route reports failures as `{ error: { code, message } }`, and `httpProvider` shows that message. Superseded requests are aborted via `AbortSignal` and never reach the panel.
+`explainCode()` rejects with an `ExplanationError` carrying a code: `not_configured`, `aborted`, `unknown`, `network`, `timeout`, `rate_limited`, `invalid_response`, `server_error`. `useExplanation` wraps anything unclassified into `unknown`, and the panel has a suggestion for every code, so an API failure is displayed rather than thrown. The route reports failures as `{ error: { code, message } }`, and `explainCode()` shows that message. Superseded requests are aborted via `AbortSignal` and never reach the panel.
 
 ## Interaction states covered
 
 | State | What the panel shows |
 | --- | --- |
-| No selection | "Select some code to inspect it." with a short hint |
-| Selected, not explained | The selected code and a large **Explain this** button |
-| Loading | Skeleton sections, no spinner |
-| Loaded | The full explanation, plus clickable related concepts |
-| Error | A clear message, a suggestion, and **Retry** |
-| Explained, then new selection | A slim "New selection" strip on top of the current explanation |
+| No selection | "Select some code to explain it", centred, with the one keyboard hint |
+| Selected, not explained | The selected code as a title, and "Press ⌘E or click Explain" |
+| Loading | The title, then a skeleton shaped like the answer; the header says "Explaining…" |
+| Loaded | Title, kind, the lead answer, three short sections, related concepts as rows, and the follow-up box |
+| Error | The title, what went wrong, a suggestion, and **Retry** |
+| Explained, then new selection | A quiet "New selection:" row above the current explanation |
 
 While an explanation is open, the explained range stays subtly underlined in the editor so the code and the panel stay visibly linked.
