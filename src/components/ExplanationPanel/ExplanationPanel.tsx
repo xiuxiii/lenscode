@@ -10,6 +10,7 @@ import type {
 import type { CodeSelection, LanguageId } from '../../types/workspace'
 import { getLanguage } from '../../data/languages'
 import { AlertIcon, CursorTextIcon, RetryIcon, SendIcon } from '../icons'
+import { LanguageIntro } from '../LanguageBadge/LanguageBadge'
 import { ExplainButton } from '../SelectionActions/SelectionActions'
 import { ExplanationSection } from './ExplanationSection'
 import { RelatedConcepts } from './RelatedConcepts'
@@ -314,7 +315,11 @@ export function ExplanationPanel({
           <ExplainButton onClick={onExplainSelection} />
         </div>
       )}
-      <div className="explanation-panel__scroll">{body}</div>
+      <div className="explanation-panel__scroll">
+        {/* Always say what language this is first — readers may not know. */}
+        <LanguageIntro language={status === 'idle' || !request ? language : request.language} />
+        {body}
+      </div>
       <AskAboutThis
         key={status === 'loaded' && explanation ? explanation.id : 'none'}
         explanation={status === 'loaded' ? explanation : null}

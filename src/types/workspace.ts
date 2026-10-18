@@ -5,6 +5,22 @@ export type LanguageId =
   | 'html'
   | 'css'
   | 'json'
+  | 'shell'
+  | 'powershell'
+  | 'sql'
+  | 'java'
+  | 'c'
+  | 'cpp'
+  | 'csharp'
+  | 'go'
+  | 'rust'
+  | 'php'
+  | 'ruby'
+  | 'yaml'
+  | 'markdown'
+  | 'dockerfile'
+  /** Not recognised (yet) — empty files, prose, or too little code to tell. */
+  | 'plaintext'
 
 export interface LanguageDefinition {
   id: LanguageId
@@ -13,6 +29,12 @@ export interface LanguageDefinition {
   extension: string
   /** Short tag shown in compact UI (file icons, status bar). */
   tag: string
+  /** Accent colour for the tag, badge and panel strip. */
+  color: string
+  /** How the name reads mid-sentence ("This is …"), when `label` alone reads badly. */
+  phrase?: string
+  /** One plain-English line for someone who has never heard of it. */
+  description: string
 }
 
 export interface WorkspaceFile {

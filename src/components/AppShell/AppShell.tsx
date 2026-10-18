@@ -101,7 +101,7 @@ export function AppShell() {
   )
 
   const newFile = useCallback(() => {
-    workspace.addFile('javascript')
+    workspace.addFile()
     setSelection(null)
     reset()
   }, [workspace, reset])
@@ -182,7 +182,6 @@ export function AppShell() {
           <EditorToolbar
             file={activeFile}
             selection={selection}
-            onLanguageChange={workspace.setLanguage}
             onExplain={explainSelection}
           />
           <CodeEditor

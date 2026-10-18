@@ -39,6 +39,21 @@ export async function getUsers(): Promise<User[]> {
 `,
   },
   {
+    id: 'setup-sh',
+    name: 'setup.sh',
+    language: 'shell',
+    content: `# Commands you might be told to run in a terminal.
+# Highlight any of them to see what it does before you run it.
+git clone https://github.com/xiuxiii/lenscode.git
+cd lenscode
+npm install
+cp .env.example .env.local
+npm run dev
+git checkout -b my-feature
+git push -u origin my-feature
+`,
+  },
+  {
     id: 'app-py',
     name: 'app.py',
     language: 'python',

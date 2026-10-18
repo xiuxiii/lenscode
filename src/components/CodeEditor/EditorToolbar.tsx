@@ -1,13 +1,11 @@
-import { getLanguage } from '../../data/languages'
-import type { CodeSelection, LanguageId, WorkspaceFile } from '../../types/workspace'
+import type { CodeSelection, WorkspaceFile } from '../../types/workspace'
 import { FileIcon } from '../icons'
-import { LanguageSelector } from '../LanguageSelector/LanguageSelector'
+import { LanguageBadge } from '../LanguageBadge/LanguageBadge'
 import { ExplainButton } from '../SelectionActions/SelectionActions'
 
 interface EditorToolbarProps {
   file: WorkspaceFile
   selection: CodeSelection | null
-  onLanguageChange: (language: LanguageId) => void
   onExplain: () => void
 }
 
@@ -19,7 +17,6 @@ function previewSelection(text: string): string {
 export function EditorToolbar({
   file,
   selection,
-  onLanguageChange,
   onExplain,
 }: EditorToolbarProps) {
   const hasSelection = Boolean(selection?.text.trim())
@@ -37,10 +34,12 @@ export function EditorToolbar({
         </span>
       ) : (
         <span className="editor-toolbar__hint">
-          Highlight any {getLanguage(file.language).label} to inspect it
+          {file.language === 'plaintext'
+            ? 'Paste or type code, then highlight any part of it'
+            : 'Highlight any part of the code to inspect it'}
         </span>
       )}
-      <LanguageSelector value={file.language} onChange={onLanguageChange} />
+      <LanguageBadge language={file.language} />
       <ExplainButton
         onClick={onExplain}
         disabled={!hasSelection}
