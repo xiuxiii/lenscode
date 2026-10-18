@@ -70,7 +70,8 @@ src/
     StatusBar/          Engine, status, cursor, selection, language, file
   hooks/
     useExplanation.ts   Reducer-based state machine (idle → loading → loaded | error) with cancellation
-    useWorkspace.ts     In-memory project: name, files (by path), active file, open/add
+    useWorkspace.ts     The project: name, files (by path), active file, open/add/close
+    useSessionPersistence.ts  Autosaves the workspace and history (debounced, flushed on page hide)
   services/
     explanationService.ts       explainCode() — the only door between UI and AI
     explanationProviders/
@@ -83,6 +84,7 @@ src/
   lib/
     detectLanguage.ts       Automatic language detection (offline, runs on every edit)
     importFiles.ts          Reads opened / dropped files and folders, with safety filtering
+    sessionStore.ts         Saves / restores the project and history in this browser (IndexedDB)
   types/
     explanation.ts          Explanation, ExplanationRequest, ExplanationProvider
     workspace.ts            WorkspaceFile, CodeSelection, LanguageId
@@ -99,7 +101,19 @@ src/
 - **Not text:** images, fonts, archives and executables by extension, plus anything containing NUL bytes.
 - **Too big:** files over 500 KB (the most one explanation can send), and more than 2,000 files or 25 MB in total.
 
-A folder opens on its `README` if it has one. Nothing is saved yet: refreshing the page goes back to the example project.
+A folder opens on its `README` if it has one.
+
+## Saved between visits
+
+Your project, its files (including edits), the open file and your recent explanations are kept in this browser and come back after a refresh or restart. They are never uploaded.
+
+- **Where:** `src/lib/sessionStore.ts` stores them in IndexedDB, in this browser on this computer only. IndexedDB rather than `localStorage` because a project can be up to 25 MB. Saves wait for a 400 ms pause in typing and only rewrite files that changed.
+- **No lost keystrokes:** IndexedDB writes are asynchronous and a browser may abandon one when the page unloads. So the latest text is also written synchronously to `localStorage` as a draft when the page is hidden, applied on the next load, and dropped once a normal save has caught up.
+- **Recent explanations are saved in full.** Clicking one shows it instantly without asking the AI again, so there is no extra cost.
+- **Starting over:** the **×** next to a folder's name closes it and returns to the example project (your files on disk are not touched). On the example project the same button resets it. **Clear** empties Recent.
+- **Safe failure:** if storage is unavailable (some private windows) or the saved data is unreadable or from an incompatible version, the app starts fresh rather than breaking. `loadSession()` is awaited before the first render, with a 1.5 s cap, so a reload never flashes the example project first.
+
+Two tabs open at once share the same save, and the last one to save wins.
 
 ## Language detection
 

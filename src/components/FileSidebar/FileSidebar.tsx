@@ -2,7 +2,7 @@ import type { Explanation } from '../../types/explanation'
 import type { ImportResult, PickedFile } from '../../lib/importFiles'
 import { pickedFromInput } from '../../lib/importFiles'
 import type { WorkspaceFile } from '../../types/workspace'
-import { CloseIcon, FileIcon, FolderOpenIcon, HistoryIcon, PlusIcon } from '../icons'
+import { CloseIcon, FileIcon, FolderOpenIcon, HistoryIcon, PlusIcon, RetryIcon } from '../icons'
 import { FileTree } from './FileTree'
 import './FileSidebar.css'
 
@@ -24,7 +24,11 @@ interface FileSidebarProps {
   onOpenFolder: (picked: PickedFile[]) => void
   onOpenFiles: (picked: PickedFile[]) => void
   onDismissNotice: () => void
+  /** The built-in example project is showing (offer Reset rather than Close). */
+  isExample: boolean
+  onCloseProject: () => void
   onReopenExplanation: (explanation: Explanation) => void
+  onClearHistory: () => void
 }
 
 function compact(code: string): string {
@@ -113,7 +117,10 @@ export function FileSidebar({
   onOpenFolder,
   onOpenFiles,
   onDismissNotice,
+  isExample,
+  onCloseProject,
   onReopenExplanation,
+  onClearHistory,
 }: FileSidebarProps) {
   return (
     <nav className="file-sidebar" aria-label="Files">
@@ -148,7 +155,8 @@ export function FileSidebar({
           </label>
         </div>
         <p className="file-sidebar__hint">
-          Or drag them anywhere onto this window. Files stay on your computer.
+          Or drag them anywhere onto this window. Files stay on your computer, and
+          LensCode remembers them in this browser.
         </p>
 
         {importing && <p className="import-summary import-summary--busy">Opening…</p>}
@@ -158,15 +166,30 @@ export function FileSidebar({
           <span className="eyebrow" title={projectName}>
             {projectName}
           </span>
-          <button
-            type="button"
-            className="icon-button file-sidebar__add"
-            onClick={onNewFile}
-            title="New blank file (paste anything into it)"
-            aria-label="New file"
-          >
-            <PlusIcon size={14} />
-          </button>
+          <span className="file-sidebar__actions">
+            <button
+              type="button"
+              className="icon-button file-sidebar__add"
+              onClick={onNewFile}
+              title="New blank file (paste anything into it)"
+              aria-label="New file"
+            >
+              <PlusIcon size={14} />
+            </button>
+            <button
+              type="button"
+              className="icon-button file-sidebar__add"
+              onClick={onCloseProject}
+              title={
+                isExample
+                  ? 'Reset the example project'
+                  : `Close ${projectName} and go back to the example project (your files on disk are not touched)`
+              }
+              aria-label={isExample ? 'Reset example project' : 'Close project'}
+            >
+              {isExample ? <RetryIcon size={13} /> : <CloseIcon size={13} />}
+            </button>
+          </span>
         </div>
         <FileTree
           key={projectName}
@@ -182,6 +205,16 @@ export function FileSidebar({
             <HistoryIcon size={12} className="file-sidebar__header-icon" />
             Recent
           </span>
+          {history.length > 0 && (
+            <button
+              type="button"
+              className="file-sidebar__text-button"
+              onClick={onClearHistory}
+              title="Forget these saved explanations"
+            >
+              Clear
+            </button>
+          )}
         </div>
         {history.length === 0 ? (
           <p className="file-sidebar__muted">
@@ -195,7 +228,7 @@ export function FileSidebar({
                   type="button"
                   className="recent-list__item"
                   onClick={() => onReopenExplanation(item)}
-                  title={item.selectedCode}
+                  title={`${item.selectedCode}\n\nShows the saved explanation (no new AI request).`}
                 >
                   <code>{compact(item.selectedCode)}</code>
                   <span className="recent-list__concept">{item.concept}</span>
