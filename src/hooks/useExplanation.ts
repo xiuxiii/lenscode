@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react'
-import { explanationProvider } from '../services/explanationService'
+import { explainCode, explanationEngineName } from '../services/explanationService'
 import {
   ExplanationError,
   type Explanation,
@@ -81,14 +81,15 @@ export function useExplanation() {
       controllerRef.current = controller
       dispatch({ type: 'start', request })
       try {
-        const explanation = await explanationProvider.explain(
-          request,
-          controller.signal,
-        )
+        const explanation = await explainCode(request, {
+          signal: controller.signal,
+        })
         if (controller.signal.aborted) return
         dispatch({ type: 'success', explanation })
       } catch (err) {
         if (controller.signal.aborted) return
+        // Anything the service failed to classify still reaches the panel as
+        // a presentable error rather than an unhandled rejection.
         const error =
           err instanceof ExplanationError
             ? err
@@ -96,6 +97,7 @@ export function useExplanation() {
                 'unknown',
                 err instanceof Error ? err.message : 'Something went wrong.',
               )
+        if (error.code === 'aborted') return
         dispatch({ type: 'failure', error })
       } finally {
         if (controllerRef.current === controller) controllerRef.current = null
@@ -120,6 +122,6 @@ export function useExplanation() {
     explain,
     retry,
     reset,
-    providerName: explanationProvider.name,
+    providerName: explanationEngineName,
   }
 }

@@ -1,4 +1,4 @@
-import type { LanguageDefinition, LanguageId } from '../types/workspace'
+import type { LanguageDefinition, LanguageId } from '../types/workspace.ts'
 
 export const LANGUAGES: LanguageDefinition[] = [
   { id: 'javascript', label: 'JavaScript', extension: 'js', tag: 'JS' },

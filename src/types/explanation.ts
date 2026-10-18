@@ -1,4 +1,4 @@
-import type { LanguageId } from './workspace'
+import type { LanguageId } from './workspace.ts'
 
 /**
  * A short label describing what kind of syntax the selection is.
@@ -26,15 +26,31 @@ export interface RelatedConcept {
 }
 
 /**
- * The shape an explanation API is expected to return.
- * Visual components render this object and nothing else, so swapping the
- * mock provider for a real backend should not touch the UI.
+ * The shape an explanation API is expected to return: the contract between
+ * the explanation service and the explanation panel.
+ *
+ * Visual components render this object and nothing else, so swapping the mock
+ * provider for a real backend must not touch the UI.
+ *
+ * Canonical section names map onto these fields as follows — a backend is
+ * free to use either vocabulary as long as the service layer returns *this*
+ * one (see `src/services/explanationProviders/httpProvider.ts`):
+ *
+ *   title                 → concept
+ *   whatIsIt              → simpleExplanation
+ *   technicalDefinition   → definition
+ *   inThisCode            → contextualExplanation
+ *   whyItsHere            → whyItExists
+ *   relatedConcepts[].name        → relatedConcepts[].label
+ *   relatedConcepts[].explanation → relatedConcepts[].hint
  */
 export interface Explanation {
+  /** Unique per response. Used as a React key and to reset the follow-up box. */
   id: string
+  /** Echo of the code that was explained, trimmed. */
   selectedCode: string
   language: LanguageId
-  /** Short human label, e.g. "Method call" or "Declaration keyword". */
+  /** Short human label / title, e.g. "Method call" or "Declaration keyword". */
   concept: string
   kind: ConceptKind
   /** WHAT IS IT? — one or two plain-language sentences. */
@@ -58,17 +74,61 @@ export interface SourceRange {
 }
 
 /**
- * Everything a backend would need to explain a selection in context.
+ * The code around the selection. This is what lets an answer be specific to
+ * *this* file rather than generic: the full source of the active file, plus
+ * where the selection sits inside it.
  */
-export interface ExplanationRequest {
-  selectedCode: string
-  language: LanguageId
+export interface SurroundingContext {
+  /** Full text of the file the selection came from. */
   fullSource: string
+  /** Where the selection sits in `fullSource`, when it came from the editor. */
   range: SourceRange | null
-  fileName?: string
 }
 
-export type ExplanationErrorCode = 'not_found' | 'aborted' | 'unknown'
+/**
+ * Reserved for project-level context (other files, dependencies, symbols).
+ * Nothing populates this yet — it exists so adding project-wide intelligence
+ * later is an additive change to the request rather than a new shape.
+ */
+export interface ProjectContext {
+  /** Placeholder. Replace with real fields when project context is built. */
+  readonly kind?: 'reserved'
+}
+
+/**
+ * Everything the explanation service needs to explain a selection in context.
+ * This is the single request shape; `explainCode()` accepts exactly this.
+ */
+export interface ExplanationRequest {
+  /** The code the user highlighted (or a related-concept label). */
+  selectedCode: string
+  language: LanguageId
+  surroundingContext: SurroundingContext
+  /** Name of the file the selection came from, e.g. "fetchUsers.js". */
+  fileName?: string
+  /** Not populated yet. See `ProjectContext`. */
+  projectContext?: ProjectContext
+}
+
+/**
+ * Why an explanation failed. The first three are produced today; the rest
+ * exist so an HTTP-backed provider can report failures precisely without the
+ * UI needing to change.
+ */
+export type ExplanationErrorCode =
+  | 'not_found'
+  | 'aborted'
+  | 'unknown'
+  /** The request never reached the backend (offline, DNS, CORS). */
+  | 'network'
+  /** The backend or the model took too long. */
+  | 'timeout'
+  /** Too many requests — the caller should back off. */
+  | 'rate_limited'
+  /** The backend answered, but not with a usable `Explanation`. */
+  | 'invalid_response'
+  /** The backend answered with a 5xx. */
+  | 'server_error'
 
 export class ExplanationError extends Error {
   code: ExplanationErrorCode
@@ -79,12 +139,21 @@ export class ExplanationError extends Error {
   }
 }
 
+/** Options every provider accepts. */
+export interface ExplainOptions {
+  /** Cancels an in-flight explanation (the UI aborts superseded requests). */
+  signal?: AbortSignal
+}
+
 /**
  * Contract for anything that can produce explanations: the local mock today,
  * an HTTP client talking to an LLM-backed endpoint later.
+ *
+ * A provider is an implementation detail of the service layer. The UI never
+ * imports one directly — it calls `explainCode()`.
  */
 export interface ExplanationProvider {
   /** Short label surfaced in the status bar. */
   readonly name: string
-  explain(request: ExplanationRequest, signal?: AbortSignal): Promise<Explanation>
+  explain(request: ExplanationRequest, options?: ExplainOptions): Promise<Explanation>
 }
