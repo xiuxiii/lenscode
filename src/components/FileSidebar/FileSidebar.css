@@ -103,13 +103,6 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
-.file-list__tag--javascript { color: #f2c94c; }
-.file-list__tag--typescript { color: #6ea8fe; }
-.file-list__tag--python { color: #7fd1a0; }
-.file-list__tag--html { color: #f28b6b; }
-.file-list__tag--css { color: #c792ea; }
-.file-list__tag--json { color: #9aa4b2; }
-
 .recent-list__item {
   display: flex;
   flex-direction: column;

@@ -10,11 +10,12 @@ A polished, fully interactive frontend with a small LLM-backed explanation route
 PASTE CODE → SELECT CODE → EXPLAIN → READ EXPLANATION
 ```
 
-1. The app opens directly into the workspace with a realistic starter file.
-2. Highlight a keyword, a name, a call, or a whole line in the editor.
-3. A small **Explain** pill appears next to the selection. Click it, press `⌘E` / `Ctrl+E`, use the editor context menu, or click the persistent **Explain** button in the toolbar.
-4. The explanation panel on the right shows what it is, the technical definition, what it does in this code, why it is here, and related concepts to learn next.
-5. Click a related concept to explain that next. The sidebar keeps a short history of what you have explained.
+1. The app opens directly into the workspace with a realistic starter file. Click **+** for a blank file and paste any code or terminal command into it.
+2. The language is detected automatically from the code. There is nothing to choose. The toolbar badge and the top of the explanation panel say what it is, in plain English.
+3. Highlight a keyword, a name, a call, a command, or a whole line in the editor.
+4. A small **Explain** pill appears next to the selection. Click it, press `⌘E` / `Ctrl+E`, use the editor context menu, or click the persistent **Explain** button in the toolbar.
+5. The explanation panel on the right shows what it is, the technical definition, what it does in this code, why it is here, and related concepts to learn next.
+6. Click a related concept to explain that next. The sidebar keeps a short history of what you have explained.
 
 ## Running it
 
@@ -60,8 +61,8 @@ src/
     TopBar/             Brand, project switcher placeholder, settings
     FileSidebar/        Starter files, "new file", recent explanations
     CodeEditor/         Monaco wrapper, selection tracking, floating action, theme + workers
-      EditorToolbar     File name, language selector, persistent Explain button
-    LanguageSelector/
+      EditorToolbar     File name, detected-language badge, persistent Explain button
+    LanguageBadge/      Read-only language badge (toolbar) + plain-English intro (panel)
     SelectionActions/   Floating "Explain" pill + shared ExplainButton
     ExplanationPanel/   All panel states (empty, selected, loading, loaded, error) + "Ask about this"
       ExplanationSection, RelatedConcepts
@@ -77,11 +78,24 @@ src/
   data/
     mockExplanations.ts     Curated explanation catalog (JS/TS, Python, HTML, CSS, JSON)
     starterFiles.ts         Files that open by default
-    languages.ts            Supported languages
+    languages.ts            Supported languages, colours and one-line beginner descriptions
+  lib/
+    detectLanguage.ts       Automatic language detection (offline, runs on every edit)
   types/
     explanation.ts          Explanation, ExplanationRequest, ExplanationProvider
     workspace.ts            WorkspaceFile, CodeSelection, LanguageId
 ```
+
+## Language detection
+
+Nobody picks a language. `src/lib/detectLanguage.ts` scores the code against telltale patterns for each language (`def name():` means Python, a line starting with `git ` or `npm ` means a terminal command, `SELECT … FROM` means SQL) and the highest score wins. It runs instantly and offline whenever a file changes.
+
+- **Recognises:** terminal commands (Bash/Zsh), PowerShell, JavaScript, TypeScript, Python, HTML, CSS, JSON, SQL, Java, C, C++, C#, Go, Rust, PHP, Ruby, YAML, Markdown and Dockerfiles. Anything else shows as "Not detected yet".
+- **File extensions are hints, not verdicts.** Pasting Python into `notes.js` still shows Python.
+- **No flicker while typing.** A file keeps its language until the new code clearly points elsewhere.
+- **The model double-checks.** The prompt marks the language as auto-detected and tells the model to explain the code as whatever it really is.
+
+To add a language, add an entry to `src/data/languages.ts` (its `id` must be a Monaco language id) and its patterns to `SIGNALS` in `detectLanguage.ts`.
 
 ## AI API Integration
 
@@ -129,7 +143,7 @@ One shape, defined as `ExplanationRequest` in `src/types/explanation.ts` and bui
 ```ts
 {
   selectedCode: string          // what the user highlighted
-  language: LanguageId          // 'javascript' | 'typescript' | 'python' | 'html' | 'css' | 'json'
+  language: LanguageId          // auto-detected: 'python', 'shell', 'sql', … or 'plaintext'
   surroundingContext: {
     fullSource: string          // the whole active file
     range: SourceRange | null   // where the selection sits in it (1-based, Monaco coords)

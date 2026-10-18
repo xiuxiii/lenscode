@@ -55,7 +55,11 @@ export function FileSidebar({
                   onClick={() => onSelectFile(file.id)}
                   aria-current={active ? 'true' : undefined}
                 >
-                  <span className={`file-list__tag file-list__tag--${file.language}`}>
+                  <span
+                    className="file-list__tag"
+                    style={{ color: lang.color }}
+                    title={lang.label}
+                  >
                     {lang.tag}
                   </span>
                   <span className="file-list__name">{file.name}</span>
