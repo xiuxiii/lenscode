@@ -256,7 +256,10 @@ export function CodeEditor({
   return (
     <div className="code-editor">
       <Editor
-        path={file.name}
+        // Monaco caches one model per path. File ids are never reused, so a
+        // newly opened folder can't inherit a stale model from an old file
+        // that happened to have the same path (e.g. two package.json files).
+        path={file.id}
         language={file.language}
         value={file.content}
         theme={LENS_THEME}

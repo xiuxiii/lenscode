@@ -137,3 +137,36 @@ export function HistoryIcon({ size, ...props }: IconProps) {
     </svg>
   )
 }
+
+export function FolderIcon({ size, ...props }: IconProps) {
+  return (
+    <svg {...base(size, props)}>
+      <path d="M2 4.2c0-.66.54-1.2 1.2-1.2h3l1.5 1.7h5.1c.66 0 1.2.54 1.2 1.2v6.4c0 .66-.54 1.2-1.2 1.2H3.2c-.66 0-1.2-.54-1.2-1.2V4.2z" />
+    </svg>
+  )
+}
+
+export function FolderOpenIcon({ size, ...props }: IconProps) {
+  return (
+    <svg {...base(size, props)}>
+      <path d="M2 12V4.2c0-.66.54-1.2 1.2-1.2h3l1.5 1.7h4.4c.66 0 1.2.54 1.2 1.2v1.3" />
+      <path d="M2 12l1.8-4.4c.18-.45.62-.75 1.1-.75h9.1L12.3 12.3c-.18.42-.6.7-1.07.7H2" />
+    </svg>
+  )
+}
+
+export function ChevronRightIcon({ size, ...props }: IconProps) {
+  return (
+    <svg {...base(size, props)}>
+      <path d="M6 4l4 4-4 4" />
+    </svg>
+  )
+}
+
+export function CloseIcon({ size, ...props }: IconProps) {
+  return (
+    <svg {...base(size, props)}>
+      <path d="M4 4l8 8M12 4l-8 8" />
+    </svg>
+  )
+}

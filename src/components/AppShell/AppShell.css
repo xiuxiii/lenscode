@@ -76,3 +76,39 @@ body.is-resizing .app-shell__resizer::after {
     border-top: 1px solid var(--border);
   }
 }
+
+/* ─────────────────────────── Drag-and-drop ─────────────────────────── */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(12, 14, 18, 0.72);
+  border: 2px dashed var(--accent);
+  pointer-events: none;
+  animation: lens-fade-up 120ms ease-out;
+}
+
+.drop-overlay__card {
+  max-width: 340px;
+  padding: 18px 22px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-pop);
+  text-align: center;
+}
+
+.drop-overlay__title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.drop-overlay__hint {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-2);
+}

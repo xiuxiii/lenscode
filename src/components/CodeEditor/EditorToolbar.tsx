@@ -22,9 +22,9 @@ export function EditorToolbar({
   const hasSelection = Boolean(selection?.text.trim())
   return (
     <div className="editor-toolbar">
-      <span className="editor-toolbar__file" title={file.name}>
+      <span className="editor-toolbar__file" title={file.path}>
         <FileIcon size={14} />
-        <span className="editor-toolbar__file-name">{file.name}</span>
+        <span className="editor-toolbar__file-name">{file.path}</span>
       </span>
       <span className="editor-toolbar__spacer" />
       {hasSelection && selection ? (
