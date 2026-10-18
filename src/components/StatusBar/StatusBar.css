@@ -25,7 +25,7 @@
   white-space: nowrap;
 }
 
-.status-bar__item--engine {
+.status-bar__item--status {
   color: var(--text-2);
 }
 

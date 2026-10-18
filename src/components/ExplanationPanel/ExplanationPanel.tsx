@@ -116,12 +116,9 @@ function LoadingState() {
   )
 }
 
-/**
- * Every `ExplanationErrorCode` gets a suggestion, so a failure coming from a
- * real API is presented sensibly instead of always blaming the selection.
- */
+/** A next step for every `ExplanationErrorCode`, shown under the message. */
 const ERROR_HINT: Record<ExplanationErrorCode, string> = {
-  not_configured: 'Put your API key in .env.local (see the README), then restart npm run dev.',
+  not_configured: 'LensCode needs an API key before it can explain code. The README shows where it goes.',
   aborted: 'The request was cancelled. Try again.',
   unknown: 'Try again in a moment.',
   network: 'Check your connection, then try again.',

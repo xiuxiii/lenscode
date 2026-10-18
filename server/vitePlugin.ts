@@ -11,7 +11,7 @@ import { createExplainHandler } from './explain/handler.ts'
  * never `define`d, so it cannot reach the browser bundle.
  */
 
-export const EXPLAIN_ROUTE = '/api/explain'
+const EXPLAIN_ROUTE = '/api/explain'
 const MAX_BODY_BYTES = 1_000_000
 
 function readBody(req: IncomingMessage): Promise<Buffer | null> {

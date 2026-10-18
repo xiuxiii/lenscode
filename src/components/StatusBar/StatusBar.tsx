@@ -36,7 +36,7 @@ export function StatusBar({
   return (
     <footer className="status-bar">
       <div className="status-bar__group">
-        <span className="status-bar__item status-bar__item--engine">
+        <span className="status-bar__item status-bar__item--status">
           <span className={`status-bar__dot status-bar__dot--${explanationStatus}`} />
           {STATUS_TEXT[explanationStatus]}
         </span>

@@ -29,7 +29,7 @@ npm run lint
 
 Node 20.3+ is required for the API route; 22 is recommended.
 
-### Turning on real explanations (DeepSeek)
+### Adding your API key (DeepSeek)
 
 ```bash
 cp .env.example .env.local
@@ -125,7 +125,7 @@ To add a language, add an entry to `src/data/languages.ts` (its `id` must be a M
 
 ## AI API Integration
 
-*Written for the next developer picking this up. The DeepSeek integration is built and tested against a protocol-compatible stand-in; to switch it on, add a key (see [Turning on real explanations](#turning-on-real-explanations-deepseek)).*
+*Written for the next developer picking this up. The DeepSeek integration is built and tested against a protocol-compatible stand-in; it needs a server-side key to answer (see [Adding your API key](#adding-your-api-key-deepseek)).*
 
 ### Where the boundary is
 
