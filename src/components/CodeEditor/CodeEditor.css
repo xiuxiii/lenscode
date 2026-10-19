@@ -78,3 +78,16 @@
     display: none;
   }
 }
+
+/* Shown over an empty file, level with the first line. */
+.code-editor__placeholder {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+  z-index: 1;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-3);
+  pointer-events: none;
+}

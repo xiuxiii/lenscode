@@ -22,6 +22,7 @@ import { CodeEditor } from '../CodeEditor/CodeEditor'
 import { EditorToolbar } from '../CodeEditor/EditorToolbar'
 import { ExplanationPanel } from '../ExplanationPanel/ExplanationPanel'
 import { FileSidebar, type ImportNotice } from '../FileSidebar/FileSidebar'
+import { Home } from '../Home/Home'
 import { SparkleIcon } from '../icons'
 import { TopBar } from '../TopBar/TopBar'
 import './AppShell.css'
@@ -58,8 +59,17 @@ function useIsMobile(): boolean {
   return isMobile
 }
 
+type View = 'home' | 'workspace'
+
 export function AppShell({ session }: { session: SavedSession }) {
   const workspace = useWorkspace(session.workspace)
+  // Whether the workspace holds a session worth keeping (and offering to
+  // resume). Reloads go straight back into a saved project; the tutorial and
+  // a first visit start on the start screen.
+  const [hasSession, setHasSession] = useState(Boolean(session.workspace))
+  const [view, setView] = useState<View>(() =>
+    session.workspace && !session.workspace.isExample ? 'workspace' : 'home',
+  )
   const { activeFile } = workspace
   const {
     state: explanationState,
@@ -74,12 +84,14 @@ export function AppShell({ session }: { session: SavedSession }) {
   const [writer] = useState(() => createSessionWriter(session))
   useSessionPersistence(
     writer,
-    {
-      projectName: workspace.projectName,
-      isExample: workspace.isExample,
-      files: workspace.files,
-      activeFileId: workspace.activeFileId,
-    },
+    hasSession
+      ? {
+          projectName: workspace.projectName,
+          isExample: workspace.isExample,
+          files: workspace.files,
+          activeFileId: workspace.activeFileId,
+        }
+      : null,
     explanationState.history,
   )
 
@@ -164,16 +176,46 @@ export function AppShell({ session }: { session: SavedSession }) {
   const [importNotice, setImportNotice] = useState<ImportNotice | null>(null)
   const [dragDepth, setDragDepth] = useState(0)
 
-  const closeProject = useCallback(() => {
-    workspace.closeProject()
+  // ─────────────────────────── Sessions ───────────────────────────
+  /** Show the workspace after a session was started or changed. */
+  const enterSession = useCallback(() => {
+    setSelection(null)
+    reset()
+    setHasSession(true)
+    setView('workspace')
+  }, [reset])
+
+  const startBlank = useCallback(() => {
+    workspace.startBlank()
+    setImportNotice(null)
+    enterSession()
+  }, [workspace, enterSession])
+
+  const openTutorial = useCallback(() => {
+    workspace.openTutorial()
+    setImportNotice(null)
+    enterSession()
+  }, [workspace, enterSession])
+
+  const goHome = useCallback(() => {
     setSelection(null)
     setImportNotice(null)
     reset()
-  }, [workspace, reset])
+    setView('home')
+  }, [reset])
+
+  /** Forget the session (files on disk are untouched) and show the start screen. */
+  const closeSession = useCallback(() => {
+    setHasSession(false)
+    goHome()
+  }, [goHome])
 
   const importPicked = useCallback(
     async (picked: PickedFile[], mode: 'folder' | 'files', ignoredFolders?: string[]) => {
       if (picked.length === 0 && !ignoredFolders?.length) return
+      // From the start screen everything begins a new session; in the
+      // workspace, files are added to the open one.
+      const fresh = view === 'home'
       setImporting(true)
       try {
         const result = await readPickedFiles(picked, {
@@ -183,18 +225,19 @@ export function AppShell({ session }: { session: SavedSession }) {
         if (result.files.length > 0) {
           if (mode === 'folder' && result.rootName) {
             workspace.openFolder(result.rootName, result.files)
+          } else if (fresh) {
+            workspace.openFiles(result.files)
           } else {
             workspace.addFiles(result.files)
           }
-          setSelection(null)
-          reset()
+          enterSession()
         }
         setImportNotice({ mode, result })
       } finally {
         setImporting(false)
       }
     },
-    [workspace, reset],
+    [view, workspace, enterSession],
   )
 
   const hasFiles = (e: ReactDragEvent) => e.dataTransfer.types.includes('Files')
@@ -327,110 +370,140 @@ export function AppShell({ session }: { session: SavedSession }) {
       {...dropHandlers}
     >
       <TopBar
-        projectName={workspace.projectName}
+        session={
+          view === 'workspace'
+            ? { projectName: workspace.projectName, isTutorial: workspace.isExample }
+            : null
+        }
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
+        onHome={goHome}
       />
 
-      <div className="app-shell__body" ref={bodyRef}>
-        {sidebarOpen && (
-          <FileSidebar
-            files={workspace.files}
-            activeFile={activeFile}
-            history={explanationState.history}
-            importing={importing}
-            notice={importNotice}
-            onSelectFile={selectFile}
-            onNewFile={newFile}
-            onOpenFolder={(picked) => void importPicked(picked, 'folder')}
-            onOpenFiles={(picked) => void importPicked(picked, 'files')}
-            onDismissNotice={() => setImportNotice(null)}
-            projectName={workspace.projectName}
-            isExample={workspace.isExample}
-            onCloseProject={closeProject}
-            onReopenExplanation={reopenExplanation}
-            onClearHistory={clearHistory}
-          />
-        )}
-        {sidebarOpen && isMobile && (
-          <div className="app-shell__scrim" onClick={() => setSidebarOpen(false)} />
-        )}
-
-        <section className="app-shell__editor" aria-label="Code editor">
-          <EditorToolbar file={activeFile} canExplain={hasSelection} onExplain={explainSelection} />
-          <CodeEditor
-            file={activeFile}
-            onChange={(content) => {
-              // Recorded synchronously so a reload right after typing keeps it.
-              writer.noteDraft(activeFile.id, content)
-              workspace.setContent(content)
-            }}
-            onSelectionChange={setSelection}
-            onExplain={explainSelection}
-            highlightRange={highlightRange}
-            suppressActions={selectionAlreadyExplained}
-          />
-          {isMobile && hasSelection && !selectionAlreadyExplained && (
-            <button
-              type="button"
-              className="btn btn--primary app-shell__mobile-explain"
-              onClick={explainSelection}
-              title={`Explain the selection (${EXPLAIN_SHORTCUT})`}
-            >
-              <SparkleIcon size={16} />
-              Explain
-            </button>
-          )}
-        </section>
-
-        <div
-          className="app-shell__resizer"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize explanation panel"
-          aria-valuenow={panelWidth}
-          aria-valuemin={PANEL_MIN}
-          aria-valuemax={PANEL_MAX}
-          tabIndex={0}
-          onMouseDown={startResize}
-          onKeyDown={nudgePanel}
-          onDoubleClick={() => setPanelWidth(PANEL_DEFAULT)}
-        />
-
-        <ExplanationPanel
-          state={explanationState}
-          selection={selection}
-          language={activeFile.language}
-          onExplainSelection={explainSelection}
-          onExplainConcept={explainConcept}
-          onRetry={retry}
-          sheetHandle={
-            isMobile ? (
-              <div
-                className="app-shell__sheet-handle"
-                role="separator"
-                aria-orientation="horizontal"
-                aria-label="Resize explanation panel"
-                aria-valuenow={Math.round(sheetPercent)}
-                aria-valuemin={SHEET_MIN}
-                aria-valuemax={SHEET_MAX}
-                tabIndex={0}
-                onPointerDown={startSheetDrag}
-                onKeyDown={nudgeSheet}
-                onDoubleClick={() => setSheetPercent(SHEET_MIN)}
-              />
-            ) : null
+      {view === 'home' ? (
+        <Home
+          resumable={
+            hasSession
+              ? {
+                  projectName: workspace.projectName,
+                  fileCount: workspace.files.length,
+                  isTutorial: workspace.isExample,
+                }
+              : null
           }
+          importing={importing}
+          notice={importNotice}
+          onStartBlank={startBlank}
+          onOpenFolder={(picked) => void importPicked(picked, 'folder')}
+          onOpenFiles={(picked) => void importPicked(picked, 'files')}
+          onDismissNotice={() => setImportNotice(null)}
+          onResume={() => setView('workspace')}
+          onOpenTutorial={openTutorial}
         />
-      </div>
+      ) : (
+        <div className="app-shell__body" ref={bodyRef}>
+          {sidebarOpen && (
+            <FileSidebar
+              files={workspace.files}
+              activeFile={activeFile}
+              history={explanationState.history}
+              importing={importing}
+              notice={importNotice}
+              onSelectFile={selectFile}
+              onNewFile={newFile}
+              onOpenFolder={(picked) => void importPicked(picked, 'folder')}
+              onOpenFiles={(picked) => void importPicked(picked, 'files')}
+              onDismissNotice={() => setImportNotice(null)}
+              projectName={workspace.projectName}
+              isExample={workspace.isExample}
+              onCloseProject={closeSession}
+              onReopenExplanation={reopenExplanation}
+              onClearHistory={clearHistory}
+            />
+          )}
+          {sidebarOpen && isMobile && (
+            <div className="app-shell__scrim" onClick={() => setSidebarOpen(false)} />
+          )}
+
+          <section className="app-shell__editor" aria-label="Code editor">
+            <EditorToolbar file={activeFile} canExplain={hasSelection} onExplain={explainSelection} />
+            <CodeEditor
+              file={activeFile}
+              onChange={(content) => {
+                // Recorded synchronously so a reload right after typing keeps it.
+                writer.noteDraft(activeFile.id, content)
+                workspace.setContent(content)
+              }}
+              onSelectionChange={setSelection}
+              onExplain={explainSelection}
+              highlightRange={highlightRange}
+              suppressActions={selectionAlreadyExplained}
+            />
+            {isMobile && hasSelection && !selectionAlreadyExplained && (
+              <button
+                type="button"
+                className="btn btn--primary app-shell__mobile-explain"
+                onClick={explainSelection}
+                title={`Explain the selection (${EXPLAIN_SHORTCUT})`}
+              >
+                <SparkleIcon size={16} />
+                Explain
+              </button>
+            )}
+          </section>
+
+          <div
+            className="app-shell__resizer"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize explanation panel"
+            aria-valuenow={panelWidth}
+            aria-valuemin={PANEL_MIN}
+            aria-valuemax={PANEL_MAX}
+            tabIndex={0}
+            onMouseDown={startResize}
+            onKeyDown={nudgePanel}
+            onDoubleClick={() => setPanelWidth(PANEL_DEFAULT)}
+          />
+
+          <ExplanationPanel
+            state={explanationState}
+            selection={selection}
+            language={activeFile.language}
+            onExplainSelection={explainSelection}
+            onExplainConcept={explainConcept}
+            onRetry={retry}
+            sheetHandle={
+              isMobile ? (
+                <div
+                  className="app-shell__sheet-handle"
+                  role="separator"
+                  aria-orientation="horizontal"
+                  aria-label="Resize explanation panel"
+                  aria-valuenow={Math.round(sheetPercent)}
+                  aria-valuemin={SHEET_MIN}
+                  aria-valuemax={SHEET_MAX}
+                  tabIndex={0}
+                  onPointerDown={startSheetDrag}
+                  onKeyDown={nudgeSheet}
+                  onDoubleClick={() => setSheetPercent(SHEET_MIN)}
+                />
+              ) : null
+            }
+          />
+        </div>
+      )}
 
       {dragDepth > 0 && (
         <div className="drop-overlay" aria-hidden="true">
           <div className="drop-overlay__card">
-            <p className="drop-overlay__title">Drop to open</p>
+            <p className="drop-overlay__title">
+              {view === 'home' ? 'Drop to start a session' : 'Drop to open'}
+            </p>
             <p className="drop-overlay__hint">
-              A folder opens as a project; files are added to this one. Nothing is
-              uploaded.
+              {view === 'home'
+                ? 'A folder opens as a project. Nothing is uploaded.'
+                : 'A folder opens as a new session; files are added to this one. Nothing is uploaded.'}
             </p>
           </div>
         </div>

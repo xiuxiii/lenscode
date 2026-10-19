@@ -1,10 +1,52 @@
 import type { WorkspaceFile } from '../types/workspace'
 
 /**
- * Small, realistic files that open in the workspace by default so the
- * product never starts empty.
+ * The tutorial project, opened from the start screen: a short guide and a
+ * few small, realistic files to practise on.
  */
 export const STARTER_FILES: WorkspaceFile[] = [
+  {
+    id: 'start-here-md',
+    name: 'START-HERE.md',
+    path: 'START-HERE.md',
+    language: 'markdown',
+    content: `# Welcome to the LensCode tutorial
+
+This is a small practice project. None of it is yours, so explore freely and
+change anything you like: "Restart tutorial" on the start screen brings it back.
+
+## 1. Highlight something
+
+Open fetchUsers.js from the Files list and drag across the word \`await\`.
+
+## 2. Ask for an explanation
+
+Click the Explain button that appears next to it, press Ctrl+E (Cmd+E on a
+Mac), or right-click and choose "Explain selection".
+
+## 3. Read at your own pace
+
+The panel on the right starts with a short answer in plain English, then goes
+deeper: a technical definition, what it does in this code, and why it's there.
+
+## 4. Keep going
+
+Click a related concept to have it explained next. Everything you explain is
+listed under Recent, and reopening one is instant.
+
+## More to try
+
+- setup.sh: terminal commands you might be told to run. Highlight one before
+  you run it.
+- app.py: the same idea as fetchUsers.js, written in Python.
+- index.html and styles.css: how a web page is put together.
+
+## Ready for your own code?
+
+Click New session at the top to paste code, open a project folder or open
+files. You can also drop a folder anywhere on the window.
+`,
+  },
   {
     id: 'fetch-users-js',
     name: 'fetchUsers.js',
@@ -132,4 +174,4 @@ fetch_users()
   },
 ]
 
-export const DEFAULT_PROJECT_NAME = 'user-directory'
+export const TUTORIAL_PROJECT_NAME = 'user-directory'

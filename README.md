@@ -10,7 +10,7 @@ A polished, fully interactive frontend with a small LLM-backed explanation route
 PASTE CODE → SELECT CODE → EXPLAIN → READ EXPLANATION
 ```
 
-1. The app opens directly into the workspace with a realistic starter file. Use **Open…** in the sidebar to load a folder or individual files (or drag them onto the window), or click **+** for a blank file and paste any code or terminal command into it.
+1. The app opens on a start screen. Click **Start a new session** for a blank file to paste any code or terminal command into, use **Open a folder** / **Open files**, or drop them anywhere on the window. New to it? **Open tutorial** at the bottom opens a small practice project with a step-by-step guide. Inside a session, **New session** (top right) or the LensCode logo goes back to the start screen, and **Open…** in the sidebar adds more files.
 2. The language is detected automatically from the code. There is nothing to choose. The editor's tab bar names it, and the explanation says in one plain-English line what that language is.
 3. Highlight a keyword, a name, a call, a command, or a whole line in the editor.
 4. A small **Explain** pill appears just above the selection. Click it, press `⌘E` / `Ctrl+E`, use the editor context menu, or click **Explain** in the tab bar.
@@ -86,7 +86,7 @@ src/
     explanationService.ts       explainCode() — the only door between UI and AI
     parseExplanation.ts         Validates answers (shared with the server)
   data/
-    starterFiles.ts         Files that open by default
+    starterFiles.ts         The tutorial project (a guide plus practice files)
     languages.ts            Supported languages, colours and one-line beginner descriptions
   lib/
     detectLanguage.ts       Automatic language detection (offline, runs on every edit)
@@ -117,8 +117,9 @@ Your project, its files (including edits), the open file and your recent explana
 - **Where:** `src/lib/sessionStore.ts` stores them in IndexedDB, in this browser on this computer only. IndexedDB rather than `localStorage` because a project can be up to 25 MB. Saves wait for a 400 ms pause in typing and only rewrite files that changed.
 - **No lost keystrokes:** IndexedDB writes are asynchronous and a browser may abandon one when the page unloads. So the latest text is also written synchronously to `localStorage` as a draft when the page is hidden, applied on the next load, and dropped once a normal save has caught up.
 - **Recent explanations are saved in full.** Clicking one shows it instantly without asking the AI again, so there is no extra cost.
-- **Starting over:** the **×** next to a folder's name closes it and returns to the example project (your files on disk are not touched). On the example project the same button resets it. **Clear** empties Recent.
-- **Safe failure:** if storage is unavailable (some private windows) or the saved data is unreadable or from an incompatible version, the app starts fresh rather than breaking. `loadSession()` is awaited before the first render, with a 1.5 s cap, so a reload never flashes the example project first.
+- **Where a reload lands:** back in your saved session if there is one. The tutorial and a first visit start on the start screen, which offers to continue the last session.
+- **Starting over:** starting a new session replaces the current one. The **×** in the sidebar closes the session and forgets it (your files on disk are not touched); the tutorial is restarted from the start screen. **Clear** empties Recent.
+- **Safe failure:** if storage is unavailable (some private windows) or the saved data is unreadable or from an incompatible version, the app starts fresh rather than breaking. `loadSession()` is awaited before the first render, with a 1.5 s cap, so a reload never flashes the start screen before your session.
 
 Two tabs open at once share the same save, and the last one to save wins.
 
