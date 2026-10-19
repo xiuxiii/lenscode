@@ -99,6 +99,8 @@ export function CodeEditor({
   const draggingRef = useRef(false)
   const focusedRef = useRef(false)
   const [popover, setPopover] = useState<PopoverPosition | null>(null)
+  /** Where the code starts, so the empty-file hint lines up with the caret. */
+  const [contentLeft, setContentLeft] = useState<number | null>(null)
 
   // Keep latest callbacks reachable from listeners registered once on mount.
   const callbacks = useRef({ onSelectionChange, onExplain })
@@ -189,7 +191,13 @@ export function CodeEditor({
     })
 
     editor.onDidScrollChange(updatePopover)
-    editor.onDidLayoutChange(updatePopover)
+    editor.onDidLayoutChange((layout) => {
+      setContentLeft(layout.contentLeft)
+      updatePopover()
+    })
+    setContentLeft(editor.getLayoutInfo().contentLeft)
+    // An empty file is there to be pasted into: be ready for it.
+    if (!editor.getValue()) editor.focus()
 
     editor.onMouseDown(() => {
       draggingRef.current = true
@@ -226,6 +234,12 @@ export function CodeEditor({
     window.addEventListener('mouseup', onUp)
     return () => window.removeEventListener('mouseup', onUp)
   }, [updatePopover])
+
+  // Same for a blank file opened while the editor is already showing.
+  const isBlank = file.content === ''
+  useEffect(() => {
+    if (isBlank) editorRef.current?.focus()
+  }, [file.id, isBlank])
 
   // Highlight the range that is currently explained.
   useEffect(() => {
@@ -273,6 +287,11 @@ export function CodeEditor({
         onMount={handleMount}
         onChange={(value) => onChange(value ?? '')}
       />
+      {isBlank && contentLeft !== null && (
+        <p className="code-editor__placeholder" style={{ left: contentLeft }} aria-hidden="true">
+          Paste or type code here, then highlight any part of it to have it explained.
+        </p>
+      )}
       <SelectionActions
         position={suppressActions ? null : popover}
         onExplain={handleExplainClick}

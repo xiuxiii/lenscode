@@ -1,0 +1,270 @@
+/* The start screen: one centred column. The new-session button is the one
+   big thing on it; everything else steps down from there. */
+.home {
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+.home__inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: max(48px, 12vh) 24px 64px;
+  animation: lens-fade 160ms ease-out;
+}
+
+.home__hero {
+  margin-bottom: 32px;
+}
+
+.home__title {
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.home__lead {
+  margin-top: 12px;
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  color: var(--text-2);
+  text-wrap: pretty;
+}
+
+/* ─────────────────────────── New session ─────────────────────────── */
+.home-start {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 88px;
+  padding: 16px 24px 16px 16px;
+  border-radius: var(--radius-md);
+  background: var(--text);
+  color: var(--bg);
+  text-align: left;
+  transition: background-color 120ms ease-out;
+}
+
+.home-start:hover {
+  background: var(--primary-hover);
+}
+
+.home-start__icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.home-start__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.home-start__title {
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.home-start__hint {
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  opacity: 0.7;
+}
+
+.home-start__arrow {
+  flex-shrink: 0;
+  transition: transform 120ms ease-out;
+}
+
+.home-start:hover .home-start__arrow {
+  transform: translateX(2px);
+}
+
+/* ─────────────────────────── Open ─────────────────────────── */
+.home__open {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.home__open-btn {
+  height: var(--h-composer);
+}
+
+.home__open-btn svg {
+  color: var(--text-2);
+}
+
+.home__note {
+  margin-top: 12px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-3);
+  text-align: center;
+}
+
+.home__status {
+  margin-top: 16px;
+}
+
+.home__status .import-summary {
+  margin-bottom: 0;
+}
+
+/* ─────────────────────────── Sections ─────────────────────────── */
+.home__section {
+  margin-top: 40px;
+}
+
+.home__section-title {
+  margin-bottom: 8px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.home-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  text-align: left;
+  transition: background-color 120ms ease-out;
+}
+
+.home-card:hover {
+  background: var(--bg-raised);
+}
+
+.home-card__icon {
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+
+.home-card__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.home-card__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.home-card__meta {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-3);
+}
+
+.home-card__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-2);
+}
+
+.home-card:hover .home-card__action {
+  color: var(--text);
+}
+
+/* The tutorial: a quiet footnote, not a headline. */
+.home-tutorial {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.home-tutorial__icon {
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+
+.home-tutorial__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.home-tutorial__title {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: 500;
+}
+
+.home-tutorial__body {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-3);
+}
+
+@media (max-width: 768px) {
+  .home__inner {
+    padding: 32px 16px 48px;
+  }
+
+  .home__title {
+    font-size: 24px;
+    line-height: 32px;
+  }
+
+  .home-start {
+    gap: 12px;
+    min-height: 80px;
+    padding: 12px 16px 12px 12px;
+  }
+
+  .home-start__icon {
+    width: 48px;
+    height: 48px;
+  }
+
+  .home-start__title {
+    font-size: var(--text-lg);
+    line-height: var(--leading-lg);
+  }
+
+  .home-start__hint {
+    font-size: var(--text-sm);
+    line-height: var(--leading-sm);
+  }
+}
+
+@media (max-width: 420px) {
+  .home__open {
+    grid-template-columns: 1fr;
+  }
+
+  .home-tutorial {
+    flex-wrap: wrap;
+  }
+}

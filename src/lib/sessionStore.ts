@@ -38,7 +38,7 @@ const DRAFTS_KEY = 'lenscode:drafts'
 
 export interface SavedWorkspace {
   projectName: string
-  /** True for the built-in example project (offers "Reset" instead of "Close"). */
+  /** True for the built-in tutorial project. */
   isExample: boolean
   files: WorkspaceFile[]
   activeFileId: string
@@ -263,6 +263,8 @@ export function loadSession(): Promise<SavedSession> {
 
 export interface SessionWriter {
   saveWorkspace(workspace: SavedWorkspace): void
+  /** Forget the saved project (the session was closed). History is kept. */
+  clearWorkspace(): void
   saveHistory(history: Explanation[]): void
   /** Record the latest text of a file, synchronously, as it is typed. */
   noteDraft(fileId: string, content: string): void
@@ -320,6 +322,18 @@ export function createSessionWriter(
           }
         }
         if (changed) writeDrafts(drafts)
+      })
+    },
+
+    clearWorkspace() {
+      drafts.clear()
+      writeDrafts(drafts)
+      enqueue('the project', async (db) => {
+        const tx = db.transaction([FILES, META], 'readwrite')
+        tx.objectStore(FILES).clear()
+        tx.objectStore(META).delete(PROJECT_KEY)
+        await completion(tx)
+        saved = new Map()
       })
     },
 

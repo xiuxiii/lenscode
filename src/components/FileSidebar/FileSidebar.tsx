@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useFilePickers } from '../../hooks/useFilePickers'
 import type { ImportResult, PickedFile } from '../../lib/importFiles'
-import { pickedFromInput } from '../../lib/importFiles'
 import type { Explanation } from '../../types/explanation'
 import type { WorkspaceFile } from '../../types/workspace'
 import {
@@ -11,7 +11,6 @@ import {
   FolderIcon,
   FolderOpenIcon,
   PlusIcon,
-  RetryIcon,
 } from '../icons'
 import { FileTree } from './FileTree'
 import './FileSidebar.css'
@@ -34,7 +33,7 @@ interface FileSidebarProps {
   onOpenFiles: (picked: PickedFile[]) => void
   onDismissNotice: () => void
   projectName: string
-  /** The built-in example project is showing (offer Reset rather than Close). */
+  /** The tutorial project is showing (closing it reads "Leave tutorial"). */
   isExample: boolean
   onCloseProject: () => void
   onReopenExplanation: (explanation: Explanation) => void
@@ -51,7 +50,7 @@ function listNames(paths: string[], max = 3): string {
 }
 
 /** Plain-English account of what was opened and what was left out, and why. */
-function ImportSummary({ notice, onDismiss }: { notice: ImportNotice; onDismiss: () => void }) {
+export function ImportSummary({ notice, onDismiss }: { notice: ImportNotice; onDismiss: () => void }) {
   const { mode, result } = notice
   const { files, rootName, skipped } = result
   const opened = files.length
@@ -117,8 +116,7 @@ function OpenMenu({
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const folderInput = useRef<HTMLInputElement>(null)
-  const filesInput = useRef<HTMLInputElement>(null)
+  const { pickFolder, pickFiles, inputs } = useFilePickers(onOpenFolder, onOpenFiles)
 
   useEffect(() => {
     if (!open) return
@@ -139,9 +137,9 @@ function OpenMenu({
     }
   }, [open])
 
-  const choose = (input: RefObject<HTMLInputElement | null>) => {
+  const choose = (pick: () => void) => {
     setOpen(false)
-    input.current?.click()
+    pick()
   }
 
   const moveFocus = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -174,7 +172,7 @@ function OpenMenu({
             type="button"
             role="menuitem"
             className="open-menu__item"
-            onClick={() => choose(folderInput)}
+            onClick={() => choose(pickFolder)}
             title="Open a whole project folder"
           >
             <FolderIcon />
@@ -184,7 +182,7 @@ function OpenMenu({
             type="button"
             role="menuitem"
             className="open-menu__item"
-            onClick={() => choose(filesInput)}
+            onClick={() => choose(pickFiles)}
             title="Add one or more files to this project"
           >
             <FileIcon />
@@ -192,33 +190,7 @@ function OpenMenu({
           </button>
         </div>
       )}
-      <input
-        ref={(el) => {
-          folderInput.current = el
-          // Not in React's types; enables folder picking in every major browser.
-          el?.setAttribute('webkitdirectory', '')
-        }}
-        type="file"
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden="true"
-        onChange={(e) => {
-          onOpenFolder(pickedFromInput(e.target.files))
-          e.target.value = ''
-        }}
-      />
-      <input
-        ref={filesInput}
-        type="file"
-        multiple
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden="true"
-        onChange={(e) => {
-          onOpenFiles(pickedFromInput(e.target.files))
-          e.target.value = ''
-        }}
-      />
+      {inputs}
     </div>
   )
 }
@@ -259,12 +231,12 @@ export function FileSidebar({
           onClick={onCloseProject}
           title={
             isExample
-              ? 'Reset the example project'
-              : `Close ${projectName} and go back to the example project (your files on disk are not touched)`
+              ? 'Leave the tutorial and go back to the start screen'
+              : `Close ${projectName} and go back to the start screen (your files on disk are not touched)`
           }
-          aria-label={isExample ? 'Reset example project' : 'Close project'}
+          aria-label={isExample ? 'Leave tutorial' : 'Close session'}
         >
-          {isExample ? <RetryIcon /> : <CloseIcon />}
+          <CloseIcon />
         </button>
       </div>
 

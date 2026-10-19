@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { DEFAULT_PROJECT_NAME, STARTER_FILES } from '../data/starterFiles'
+import { STARTER_FILES, TUTORIAL_PROJECT_NAME } from '../data/starterFiles'
 import { detectLanguage } from '../lib/detectLanguage'
 import type { ImportedFile } from '../lib/importFiles'
 import type { SavedWorkspace } from '../lib/sessionStore'
@@ -29,20 +29,36 @@ function pickInitialFile(files: WorkspaceFile[]): WorkspaceFile {
   )
 }
 
-/** A fresh copy of the example project. New ids, so no stale editor models. */
-function exampleWorkspace(): SavedWorkspace {
+/** What a session is called until it is a folder or a single opened file. */
+const UNTITLED_SESSION = 'Untitled session'
+
+/** A fresh copy of the tutorial project. New ids, so no stale editor models. */
+function tutorialWorkspace(): SavedWorkspace {
   const stamp = Date.now()
   const files = STARTER_FILES.map((f) => ({ ...f, id: `${f.id}_${stamp}` }))
   return {
-    projectName: DEFAULT_PROJECT_NAME,
+    projectName: TUTORIAL_PROJECT_NAME,
     isExample: true,
     files,
     activeFileId: files[0].id,
   }
 }
 
+/** A new session holding one empty file to paste into. */
+function blankWorkspace(): SavedWorkspace {
+  const file: WorkspaceFile = {
+    id: `blank_${Date.now()}`,
+    // No extension: the language comes from whatever gets pasted in.
+    name: 'untitled',
+    path: 'untitled',
+    language: 'plaintext',
+    content: '',
+  }
+  return { projectName: UNTITLED_SESSION, isExample: false, files: [file], activeFileId: file.id }
+}
+
 export function useWorkspace(initial: SavedWorkspace | null) {
-  const [start] = useState(() => initial ?? exampleWorkspace())
+  const [start] = useState(() => initial ?? blankWorkspace())
   const [projectName, setProjectName] = useState(start.projectName)
   const [isExample, setIsExample] = useState(start.isExample)
   const [files, setFiles] = useState<WorkspaceFile[]>(start.files)
@@ -100,17 +116,37 @@ export function useWorkspace(initial: SavedWorkspace | null) {
     setActiveFileId(file.id)
   }, [files])
 
-  /** Replace the whole project with an opened folder. */
+  /** Replace the whole project. */
+  const load = useCallback((next: SavedWorkspace) => {
+    setProjectName(next.projectName)
+    setIsExample(next.isExample)
+    setFiles(next.files)
+    setActiveFileId(next.activeFileId)
+  }, [])
+
+  /** Start a new session with an opened folder. */
   const openFolder = useCallback(
     (name: string, imported: ImportedFile[]) => {
       if (imported.length === 0) return
       const opened = imported.map(toWorkspaceFile)
-      setProjectName(name)
-      setIsExample(false)
-      setFiles(opened)
-      setActiveFileId(pickInitialFile(opened).id)
+      load({ projectName: name, isExample: false, files: opened, activeFileId: pickInitialFile(opened).id })
     },
-    [toWorkspaceFile],
+    [load, toWorkspaceFile],
+  )
+
+  /** Start a new session with individually opened files. */
+  const openFiles = useCallback(
+    (imported: ImportedFile[]) => {
+      if (imported.length === 0) return
+      const opened = imported.map(toWorkspaceFile)
+      load({
+        projectName: opened.length === 1 ? opened[0].name : UNTITLED_SESSION,
+        isExample: false,
+        files: opened,
+        activeFileId: opened[0].id,
+      })
+    },
+    [load, toWorkspaceFile],
   )
 
   /**
@@ -141,14 +177,11 @@ export function useWorkspace(initial: SavedWorkspace | null) {
     [files, toWorkspaceFile],
   )
 
-  /** Go back to a fresh example project (also how the example is reset). */
-  const closeProject = useCallback(() => {
-    const example = exampleWorkspace()
-    setProjectName(example.projectName)
-    setIsExample(true)
-    setFiles(example.files)
-    setActiveFileId(example.activeFileId)
-  }, [])
+  /** Start a new session with one empty file. */
+  const startBlank = useCallback(() => load(blankWorkspace()), [load])
+
+  /** Open a fresh copy of the tutorial project (also how it is restarted). */
+  const openTutorial = useCallback(() => load(tutorialWorkspace()), [load])
 
   return {
     projectName,
@@ -160,7 +193,9 @@ export function useWorkspace(initial: SavedWorkspace | null) {
     setContent,
     addFile,
     openFolder,
+    openFiles,
     addFiles,
-    closeProject,
+    startBlank,
+    openTutorial,
   }
 }
