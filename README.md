@@ -13,7 +13,7 @@ PASTE CODE → SELECT CODE → EXPLAIN → READ EXPLANATION
 1. The app opens on a start screen. Click **Start a new session** for a blank file to paste any code or terminal command into, use **Open a folder** / **Open files**, or drop them anywhere on the window. New to it? **Open tutorial** at the bottom opens a small practice project with a step-by-step guide. Inside a session, **New session** (top right) or the LensCode logo goes back to the start screen, and **Open…** in the sidebar adds more files.
 2. The language is detected automatically from the code. There is nothing to choose. The editor's tab bar names it, and the explanation says in one plain-English line what that language is.
 3. Highlight a keyword, a name, a call, a command, or a whole line in the editor.
-4. A small **Explain** pill appears just above the selection. Click it, press `⌘E` / `Ctrl+E`, use the editor context menu, or click **Explain** in the tab bar.
+4. Let go of the mouse and it is explained straight away (a drag, a double-click on a word, or a click on a line number all count). Selections made with the keyboard get a small **Explain** pill instead: click it, press `⌘E` / `Ctrl+E`, use the editor context menu, or click **Explain** in the tab bar.
 5. The explanation panel on the right shows what it is, the technical definition, what it does in this code, why it is here, and related concepts to learn next.
 6. Click a related concept to explain that next. The sidebar keeps a short history of what you have explained.
 

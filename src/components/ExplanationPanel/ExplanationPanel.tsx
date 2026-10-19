@@ -65,10 +65,10 @@ function EmptyState() {
   return (
     <div className="panel-empty">
       <CursorTextIcon size={20} className="panel-empty__icon" />
-      <p className="panel-empty__title">Select some code to explain it</p>
+      <p className="panel-empty__title">Highlight some code to explain it</p>
       <p className="panel-empty__hint">
-        Highlight a keyword, a name, a call or a whole line, then press{' '}
-        <kbd className="kbd">{EXPLAIN_SHORTCUT}</kbd> or click Explain.
+        Drag across a keyword, a name, a call or a whole line, or double-click a word. It’s
+        explained as soon as you let go.
       </p>
     </div>
   )

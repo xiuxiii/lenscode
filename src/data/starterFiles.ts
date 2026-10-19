@@ -17,12 +17,14 @@ change anything you like: "Restart tutorial" on the start screen brings it back.
 
 ## 1. Highlight something
 
-Open fetchUsers.js from the Files list and drag across the word \`await\`.
+Open fetchUsers.js from the Files list and drag across the word \`await\`
+(or just double-click it).
 
-## 2. Ask for an explanation
+## 2. Let go
 
-Click the Explain button that appears next to it, press Ctrl+E (Cmd+E on a
-Mac), or right-click and choose "Explain selection".
+That's it: the moment you let go of the mouse, LensCode explains what you
+highlighted. (Selected with the keyboard instead? Press Ctrl+E, or Cmd+E on a
+Mac.)
 
 ## 3. Read at your own pace
 
