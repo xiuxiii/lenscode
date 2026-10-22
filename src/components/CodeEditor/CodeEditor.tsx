@@ -15,6 +15,8 @@ interface CodeEditorProps {
   onSelectionChange: (selection: CodeSelection | null) => void
   /** Fired by the floating action, the keyboard shortcut or the context menu. */
   onExplain: () => void
+  /** A selection made with the mouse, fired once the button is released. */
+  onSelectEnd: (selection: CodeSelection) => void
   /** Range of the code currently shown in the explanation panel. */
   highlightRange: SourceRange | null
   /** Hide the floating action, e.g. when the selection is already explained. */
@@ -22,6 +24,20 @@ interface CodeEditorProps {
 }
 
 type IStandaloneCodeEditor = MonacoEditor.IStandaloneCodeEditor
+
+/** The editor's current selection, or null when nothing is selected. */
+function readSelection(editor: IStandaloneCodeEditor): CodeSelection | null {
+  const model = editor.getModel()
+  const sel = editor.getSelection()
+  if (!model || !sel || sel.isEmpty()) return null
+  return {
+    text: model.getValueInRange(sel),
+    startLine: sel.startLineNumber,
+    startColumn: sel.startColumn,
+    endLine: sel.endLineNumber,
+    endColumn: sel.endColumn,
+  }
+}
 
 /** The floating Explain pill's footprint, for placing it clear of the selection. */
 const PILL_WIDTH = 88
@@ -91,21 +107,26 @@ export function CodeEditor({
   onChange,
   onSelectionChange,
   onExplain,
+  onSelectEnd,
   highlightRange,
   suppressActions = false,
 }: CodeEditorProps) {
   const editorRef = useRef<IStandaloneCodeEditor | null>(null)
   const decorationsRef = useRef<MonacoEditor.IEditorDecorationsCollection | null>(null)
   const draggingRef = useRef(false)
+  /** The current drag is a left-button selection (not a right-click for the menu). */
+  const selectingRef = useRef(false)
+  /** The pending after-release check; a newer press or release replaces it. */
+  const releaseFrame = useRef(0)
   const focusedRef = useRef(false)
   const [popover, setPopover] = useState<PopoverPosition | null>(null)
   /** Where the code starts, so the empty-file hint lines up with the caret. */
   const [contentLeft, setContentLeft] = useState<number | null>(null)
 
   // Keep latest callbacks reachable from listeners registered once on mount.
-  const callbacks = useRef({ onSelectionChange, onExplain })
+  const callbacks = useRef({ onSelectionChange, onExplain, onSelectEnd })
   useEffect(() => {
-    callbacks.current = { onSelectionChange, onExplain }
+    callbacks.current = { onSelectionChange, onExplain, onSelectEnd }
   })
 
   /**
@@ -173,20 +194,8 @@ export function CodeEditor({
     editorRef.current = editor
     decorationsRef.current = editor.createDecorationsCollection()
 
-    editor.onDidChangeCursorSelection((e) => {
-      const model = editor.getModel()
-      const sel = e.selection
-      if (!model || sel.isEmpty()) {
-        callbacks.current.onSelectionChange(null)
-      } else {
-        callbacks.current.onSelectionChange({
-          text: model.getValueInRange(sel),
-          startLine: sel.startLineNumber,
-          startColumn: sel.startColumn,
-          endLine: sel.endLineNumber,
-          endColumn: sel.endColumn,
-        })
-      }
+    editor.onDidChangeCursorSelection(() => {
+      callbacks.current.onSelectionChange(readSelection(editor))
       updatePopover()
     })
 
@@ -199,8 +208,10 @@ export function CodeEditor({
     // An empty file is there to be pasted into: be ready for it.
     if (!editor.getValue()) editor.focus()
 
-    editor.onMouseDown(() => {
+    editor.onMouseDown((e) => {
+      cancelAnimationFrame(releaseFrame.current)
       draggingRef.current = true
+      selectingRef.current = e.event.leftButton
       setPopover(null)
     })
     editor.onDidFocusEditorWidget(() => {
@@ -223,16 +234,30 @@ export function CodeEditor({
     })
   }
 
-  // Mouse-up can happen outside the editor; listen globally.
+  // Mouse-up can happen outside the editor; listen globally. Letting go of a
+  // mouse selection (a drag, a double-click, a click on a line number) is
+  // what asks for its explanation.
   useEffect(() => {
     const onUp = () => {
       if (!draggingRef.current) return
       draggingRef.current = false
-      // Let Monaco finalise the selection first.
-      requestAnimationFrame(updatePopover)
+      const selecting = selectingRef.current
+      selectingRef.current = false
+      // Let Monaco finalise the selection first. Only the last release of a
+      // quick double-click gets here.
+      cancelAnimationFrame(releaseFrame.current)
+      releaseFrame.current = requestAnimationFrame(() => {
+        updatePopover()
+        const editor = editorRef.current
+        const selection = editor && selecting ? readSelection(editor) : null
+        if (selection) callbacks.current.onSelectEnd(selection)
+      })
     }
     window.addEventListener('mouseup', onUp)
-    return () => window.removeEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mouseup', onUp)
+      cancelAnimationFrame(releaseFrame.current)
+    }
   }, [updatePopover])
 
   // Same for a blank file opened while the editor is already showing.

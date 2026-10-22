@@ -136,6 +136,24 @@ export function AppShell({ session }: { session: SavedSession }) {
     void explain(buildRequest(selection.text, selection))
   }, [selection, explain, buildRequest])
 
+  // Letting go of a mouse selection explains it straight away, unless it is
+  // what is already being explained (no second request for the same code).
+  const explainOnRelease = useCallback(
+    (released: CodeSelection) => {
+      if (!released.text.trim()) return
+      const { status, request } = explanationState
+      if (
+        (status === 'loading' || status === 'loaded') &&
+        normalizeSelection(released.text) === normalizeSelection(request?.selectedCode ?? '')
+      ) {
+        return
+      }
+      setSelection(released)
+      void explain(buildRequest(released.text, released))
+    },
+    [explanationState, explain, buildRequest],
+  )
+
   const explainConcept = useCallback(
     (label: string) => {
       void explain(buildRequest(label, null))
@@ -436,6 +454,7 @@ export function AppShell({ session }: { session: SavedSession }) {
               }}
               onSelectionChange={setSelection}
               onExplain={explainSelection}
+              onSelectEnd={explainOnRelease}
               highlightRange={highlightRange}
               suppressActions={selectionAlreadyExplained}
             />
