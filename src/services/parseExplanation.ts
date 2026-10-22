@@ -3,6 +3,7 @@ import {
   type ConceptKind,
   type Explanation,
   type ExplanationRequest,
+  type FollowUpAnswer,
   type RelatedConcept,
 } from '../types/explanation.ts'
 
@@ -99,4 +100,17 @@ export function parseExplanationResponse(
     whyItExists,
     relatedConcepts: toRelatedConcepts(record.relatedConcepts),
   }
+}
+
+/** Turn an arbitrary JSON body into a `FollowUpAnswer`, or throw `invalid_response`. */
+export function parseFollowUpAnswer(body: unknown): FollowUpAnswer {
+  const answer =
+    body && typeof body === 'object' ? str((body as Record<string, unknown>).answer) : null
+  if (!answer) {
+    throw new ExplanationError(
+      'invalid_response',
+      'The answer came back empty or in an unexpected format.',
+    )
+  }
+  return { answer: answer.trim() }
 }

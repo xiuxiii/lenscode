@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { getLanguage } from '../../data/languages'
 import type { ExplanationState } from '../../hooks/useExplanation'
+import { useFollowUps } from '../../hooks/useFollowUps'
 import { renderProse } from '../../lib/prose'
 import { normalizeSelection } from '../../lib/selection'
 import { EXPLAIN_SHORTCUT } from '../../lib/shortcuts'
@@ -8,6 +9,7 @@ import type { Explanation, ExplanationErrorCode } from '../../types/explanation'
 import type { CodeSelection, LanguageId } from '../../types/workspace'
 import { AlertIcon, ArrowUpIcon, CursorTextIcon, RetryIcon } from '../icons'
 import { ExplanationSection } from './ExplanationSection'
+import { FollowUpThread } from './FollowUpThread'
 import { RelatedConcepts } from './RelatedConcepts'
 import './ExplanationPanel.css'
 
@@ -25,6 +27,8 @@ interface ExplanationPanelProps {
 /** Selections this short (and on one line) are shown as a title; longer ones as a code block. */
 const TITLE_MAX_CHARS = 32
 const BLOCK_MAX_LINES = 6
+/** Matches the follow-up route's limit. */
+const MAX_QUESTION_CHARS = 2_000
 
 /** What is being explained: the code as a title (or block), plus one line under it. */
 function Subject({
@@ -151,32 +155,21 @@ function LoadedState({
 }
 
 /** Follow-up box; only shown once there is an explanation to ask about. */
-function AskComposer() {
+function AskComposer({ busy, onAsk }: { busy: boolean; onAsk: (question: string) => void }) {
   // State resets whenever the parent remounts this with a new `key`
   // (one per explanation), so no effect is needed.
   const [question, setQuestion] = useState('')
-  const [asked, setAsked] = useState<string | null>(null)
-  const ready = question.trim().length > 0
+  const ready = question.trim().length > 0 && !busy
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    const q = question.trim()
-    if (!q) return
-    setAsked(q)
+    if (!ready) return
+    onAsk(question)
     setQuestion('')
   }
 
   return (
     <div className="panel-ask">
-      {asked && (
-        <div className="panel-ask__thread">
-          <p className="panel-ask__question">{asked}</p>
-          <p className="panel-ask__answer">
-            Follow-up answers aren’t available in this preview yet. The explanation
-            engine will answer here once it’s connected.
-          </p>
-        </div>
-      )}
       <form className="composer" onSubmit={submit}>
         <input
           className="composer__input"
@@ -185,12 +178,14 @@ function AskComposer() {
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="Ask a follow-up…"
           aria-label="Ask a follow-up question"
+          maxLength={MAX_QUESTION_CHARS}
         />
         <button
           type="submit"
           className={`icon-btn composer__send${ready ? ' composer__send--ready' : ''}`}
           disabled={!ready}
-          aria-label="Send question"
+          aria-label={busy ? 'Answering the last question…' : 'Send question'}
+          title={busy ? 'Answering the last question…' : undefined}
         >
           <ArrowUpIcon />
         </button>
@@ -210,6 +205,8 @@ export function ExplanationPanel({
 }: ExplanationPanelProps) {
   const { status, request, explanation, error } = state
   const hasSelection = Boolean(selection?.text.trim())
+  const loaded = status === 'loaded' && explanation ? explanation : null
+  const { followUps, busy, ask, retry: retryFollowUp } = useFollowUps(loaded, request)
 
   const selectionIsNew =
     hasSelection &&
@@ -251,9 +248,8 @@ export function ExplanationPanel({
             onRetry={onRetry}
           />
         )}
-        {status === 'loaded' && explanation && (
-          <LoadedState explanation={explanation} onConcept={onExplainConcept} />
-        )}
+        {loaded && <LoadedState explanation={loaded} onConcept={onExplainConcept} />}
+        {loaded && <FollowUpThread followUps={followUps} onRetry={retryFollowUp} />}
       </>
     )
   }
@@ -290,7 +286,7 @@ export function ExplanationPanel({
       >
         {body}
       </div>
-      {status === 'loaded' && explanation && <AskComposer key={`ask:${explanation.id}`} />}
+      {loaded && <AskComposer key={`ask:${loaded.id}`} busy={busy} onAsk={ask} />}
     </aside>
   )
 }

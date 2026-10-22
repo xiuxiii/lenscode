@@ -1,17 +1,18 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { loadEnv, type Connect, type Plugin } from 'vite'
 import { readLlmConfig } from './explain/config.ts'
-import { createExplainHandler } from './explain/handler.ts'
+import { createExplainHandler, createFollowUpHandler } from './explain/handler.ts'
 
 /**
- * Serves `POST /api/explain` from the Vite dev server (`npm run dev`) and the
- * preview server (`npm run preview`).
+ * Serves `POST /api/explain` and `POST /api/followup` from the Vite dev
+ * server (`npm run dev`) and the preview server (`npm run preview`).
  *
  * The LLM key is read here, in Node, via `loadEnv(mode, root, '')`. It is
  * never `define`d, so it cannot reach the browser bundle.
  */
 
 const EXPLAIN_ROUTE = '/api/explain'
+const FOLLOW_UP_ROUTE = '/api/followup'
 const MAX_BODY_BYTES = 1_000_000
 
 function readBody(req: IncomingMessage): Promise<Buffer | null> {
@@ -38,7 +39,7 @@ function sendJson(res: ServerResponse, status: number, body: unknown) {
   res.end(JSON.stringify(body))
 }
 
-function createMiddleware(handle: (request: Request) => Promise<Response>) {
+function createMiddleware(route: string, handle: (request: Request) => Promise<Response>) {
   const middleware: Connect.NextHandleFunction = (req, res) => {
     void (async () => {
       // Abort the upstream LLM call if the browser goes away (new selection).
@@ -57,7 +58,7 @@ function createMiddleware(handle: (request: Request) => Promise<Response>) {
       }
 
       const response = await handle(
-        new Request(`http://localhost${EXPLAIN_ROUTE}`, {
+        new Request(`http://localhost${route}`, {
           method,
           headers: { 'Content-Type': req.headers['content-type'] ?? 'application/json' },
           body: body ? new Uint8Array(body) : undefined,
@@ -81,7 +82,7 @@ function createMiddleware(handle: (request: Request) => Promise<Response>) {
 }
 
 export function explainApi(): Plugin {
-  let middleware: Connect.NextHandleFunction | null = null
+  let routes: [string, Connect.NextHandleFunction][] = []
 
   return {
     name: 'lenscode-explain-api',
@@ -92,19 +93,22 @@ export function explainApi(): Plugin {
       // '' prefix: load every variable, including the server-only LLM_* ones.
       const env = loadEnv(mode, envDir, '')
 
-      const handle = createExplainHandler({
+      const options = {
         config: readLlmConfig(env),
-        log: (message) => console.warn(message),
-      })
-      middleware = createMiddleware(handle)
+        log: (message: string) => console.warn(message),
+      }
+      routes = [
+        [EXPLAIN_ROUTE, createMiddleware(EXPLAIN_ROUTE, createExplainHandler(options))],
+        [FOLLOW_UP_ROUTE, createMiddleware(FOLLOW_UP_ROUTE, createFollowUpHandler(options))],
+      ]
     },
 
     configureServer(server) {
-      if (middleware) server.middlewares.use(EXPLAIN_ROUTE, middleware)
+      for (const [route, middleware] of routes) server.middlewares.use(route, middleware)
     },
 
     configurePreviewServer(server) {
-      if (middleware) server.middlewares.use(EXPLAIN_ROUTE, middleware)
+      for (const [route, middleware] of routes) server.middlewares.use(route, middleware)
     },
   }
 }
