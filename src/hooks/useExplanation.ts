@@ -25,6 +25,7 @@ type Action =
   | { type: 'failure'; error: ExplanationError }
   | { type: 'reset' }
   | { type: 'clearHistory' }
+  | { type: 'mergeHistory'; history: Explanation[] }
 
 const HISTORY_LIMIT = 6
 
@@ -81,6 +82,13 @@ function reducer(state: ExplanationState, action: Action): ExplanationState {
       return { ...initialState, history: state.history }
     case 'clearHistory':
       return { ...state, history: [] }
+    case 'mergeHistory': {
+      // Older saved entries go after the current ones; duplicates are dropped.
+      const known = new Set(state.history.map((h) => h.selectedCode))
+      const older = action.history.filter((h) => !known.has(h.selectedCode))
+      if (older.length === 0) return state
+      return { ...state, history: [...state.history, ...older].slice(0, HISTORY_LIMIT) }
+    }
   }
 }
 
@@ -148,6 +156,12 @@ export function useExplanation(initialHistory: Explanation[] = []) {
 
   const clearHistory = useCallback(() => dispatch({ type: 'clearHistory' }), [])
 
+  /** Add saved explanations that arrived late, after the ones made since. */
+  const mergeHistory = useCallback(
+    (history: Explanation[]) => dispatch({ type: 'mergeHistory', history }),
+    [],
+  )
+
   useEffect(() => cancel, [cancel])
 
   return {
@@ -157,5 +171,6 @@ export function useExplanation(initialHistory: Explanation[] = []) {
     reset,
     show,
     clearHistory,
+    mergeHistory,
   }
 }

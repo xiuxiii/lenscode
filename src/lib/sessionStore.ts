@@ -52,6 +52,13 @@ export interface SavedSession {
   storedFiles: WorkspaceFile[]
   /** Drafts applied on load but not yet saved to IndexedDB. */
   drafts: Map<string, string>
+  /**
+   * Set when reading the saved session took too long and this one is an
+   * empty stand-in: the real read, still running. Until it finishes the
+   * writer holds every write, so a slow start can never overwrite or delete
+   * what is saved (see `SessionWriter.adopt`).
+   */
+  late: Promise<SavedSession> | null
 }
 
 interface ProjectRecord {
@@ -188,7 +195,7 @@ function writeDrafts(drafts: Map<string, string>) {
 
 // ─────────────────────────── Load ───────────────────────────
 
-async function readSession(): Promise<Omit<SavedSession, 'drafts'>> {
+async function readSession(): Promise<Omit<SavedSession, 'drafts' | 'late'>> {
   const db = await openDb()
   const tx = db.transaction([FILES, META], 'readonly')
   const [project, rawFiles, history] = await Promise.all([
@@ -243,19 +250,32 @@ function applyDrafts(
 /**
  * Whatever was saved last time, or an empty session if there is nothing
  * usable. Never rejects and never waits longer than a moment, so it is safe
- * to await before the first render.
+ * to await before the first render. If the read is slow, the result is an
+ * empty session whose `late` carries the read still in progress.
  */
 export function loadSession(): Promise<SavedSession> {
-  const empty: SavedSession = { workspace: null, history: [], storedFiles: [], drafts: new Map() }
-  const timeout = new Promise<SavedSession>((resolve) =>
-    setTimeout(() => resolve(empty), LOAD_TIMEOUT_MS),
-  )
+  const empty: SavedSession = {
+    workspace: null,
+    history: [],
+    storedFiles: [],
+    drafts: new Map(),
+    late: null,
+  }
   const load = readSession()
-    .then((saved): SavedSession => ({ ...saved, ...applyDrafts(saved.workspace, readDrafts()) }))
+    .then(
+      (saved): SavedSession => ({
+        ...saved,
+        ...applyDrafts(saved.workspace, readDrafts()),
+        late: null,
+      }),
+    )
     .catch((err: unknown) => {
       console.warn('[lenscode] Could not restore the saved session:', err)
       return empty
     })
+  const timeout = new Promise<SavedSession>((resolve) =>
+    setTimeout(() => resolve({ ...empty, late: load }), LOAD_TIMEOUT_MS),
+  )
   return Promise.race([load, timeout])
 }
 
@@ -270,20 +290,32 @@ export interface SessionWriter {
   noteDraft(fileId: string, content: string): void
   /** Write unsaved drafts to localStorage now. Call when the page is hidden. */
   persistDrafts(): void
+  /**
+   * Take over from a read that finished late (see `SavedSession.late`):
+   * learn what is stored, then carry out the latest writes held meanwhile.
+   */
+  adopt(session: Pick<SavedSession, 'storedFiles' | 'drafts'>): void
 }
 
 /**
  * @param session  The loaded session: its stored files are known to be in
  *                 IndexedDB as-is (so they are not rewritten), and its drafts
- *                 are kept until a save has caught up with them.
+ *                 are kept until a save has caught up with them. If its read
+ *                 is still running (`late`), writes wait for `adopt()`.
  */
 export function createSessionWriter(
-  session: Pick<SavedSession, 'storedFiles' | 'drafts'>,
+  session: Pick<SavedSession, 'storedFiles' | 'drafts' | 'late'>,
 ): SessionWriter {
   let saved = new Map(session.storedFiles.map((f) => [f.id, f]))
   const drafts = new Map(session.drafts)
   // Saves run one at a time, in order, each diffing against the last success.
   let queue: Promise<void> = Promise.resolve()
+
+  // While the saved session is still being read, nothing is known about what
+  // is stored, so writes are held. Only the latest of each kind matters.
+  let waiting = session.late !== null
+  let heldProject: { clear: true } | { clear: false; workspace: SavedWorkspace } | null = null
+  let heldHistory: Explanation[] | null = null
 
   const enqueue = (label: string, work: (db: IDBDatabase) => Promise<void>) => {
     queue = queue
@@ -291,50 +323,68 @@ export function createSessionWriter(
       .catch((err: unknown) => console.warn(`[lenscode] Could not save ${label}:`, err))
   }
 
+  function writeWorkspace({ projectName, isExample, files, activeFileId }: SavedWorkspace) {
+    enqueue('the project', async (db) => {
+      const tx = db.transaction([FILES, META], 'readwrite')
+      const store = tx.objectStore(FILES)
+      const current = new Set(files.map((f) => f.id))
+      for (const file of files) {
+        if (saved.get(file.id) !== file) store.put(file)
+      }
+      for (const id of saved.keys()) {
+        if (!current.has(id)) store.delete(id)
+      }
+      const record: ProjectRecord = {
+        schema: SCHEMA,
+        projectName,
+        isExample,
+        activeFileId,
+        order: files.map((f) => f.id),
+      }
+      tx.objectStore(META).put(record, PROJECT_KEY)
+      await completion(tx)
+      saved = new Map(files.map((f) => [f.id, f]))
+      // Drafts this save has caught up with (or whose file is gone) are done.
+      let changed = false
+      for (const [id, text] of drafts) {
+        if (saved.get(id)?.content === text || !saved.has(id)) {
+          drafts.delete(id)
+          changed = true
+        }
+      }
+      if (changed) writeDrafts(drafts)
+    })
+  }
+
+  function clearStoredWorkspace() {
+    drafts.clear()
+    writeDrafts(drafts)
+    enqueue('the project', async (db) => {
+      const tx = db.transaction([FILES, META], 'readwrite')
+      tx.objectStore(FILES).clear()
+      tx.objectStore(META).delete(PROJECT_KEY)
+      await completion(tx)
+      saved = new Map()
+    })
+  }
+
+  function writeHistory(history: Explanation[]) {
+    enqueue('the history', async (db) => {
+      const tx = db.transaction(META, 'readwrite')
+      tx.objectStore(META).put(history, HISTORY_KEY)
+      await completion(tx)
+    })
+  }
+
   return {
-    saveWorkspace({ projectName, isExample, files, activeFileId }) {
-      enqueue('the project', async (db) => {
-        const tx = db.transaction([FILES, META], 'readwrite')
-        const store = tx.objectStore(FILES)
-        const current = new Set(files.map((f) => f.id))
-        for (const file of files) {
-          if (saved.get(file.id) !== file) store.put(file)
-        }
-        for (const id of saved.keys()) {
-          if (!current.has(id)) store.delete(id)
-        }
-        const record: ProjectRecord = {
-          schema: SCHEMA,
-          projectName,
-          isExample,
-          activeFileId,
-          order: files.map((f) => f.id),
-        }
-        tx.objectStore(META).put(record, PROJECT_KEY)
-        await completion(tx)
-        saved = new Map(files.map((f) => [f.id, f]))
-        // Drafts this save has caught up with (or whose file is gone) are done.
-        let changed = false
-        for (const [id, text] of drafts) {
-          if (saved.get(id)?.content === text || !saved.has(id)) {
-            drafts.delete(id)
-            changed = true
-          }
-        }
-        if (changed) writeDrafts(drafts)
-      })
+    saveWorkspace(workspace) {
+      if (waiting) heldProject = { clear: false, workspace }
+      else writeWorkspace(workspace)
     },
 
     clearWorkspace() {
-      drafts.clear()
-      writeDrafts(drafts)
-      enqueue('the project', async (db) => {
-        const tx = db.transaction([FILES, META], 'readwrite')
-        tx.objectStore(FILES).clear()
-        tx.objectStore(META).delete(PROJECT_KEY)
-        await completion(tx)
-        saved = new Map()
-      })
+      if (waiting) heldProject = { clear: true }
+      else clearStoredWorkspace()
     },
 
     noteDraft(fileId, content) {
@@ -342,15 +392,28 @@ export function createSessionWriter(
     },
 
     persistDrafts() {
-      writeDrafts(drafts)
+      // Stored drafts belong to the session still being read; keep them.
+      if (!waiting) writeDrafts(drafts)
     },
 
     saveHistory(history) {
-      enqueue('the history', async (db) => {
-        const tx = db.transaction(META, 'readwrite')
-        tx.objectStore(META).put(history, HISTORY_KEY)
-        await completion(tx)
-      })
+      if (waiting) heldHistory = history
+      else writeHistory(history)
+    },
+
+    adopt(late) {
+      if (!waiting) return
+      waiting = false
+      saved = new Map(late.storedFiles.map((f) => [f.id, f]))
+      for (const [id, text] of late.drafts) {
+        if (!drafts.has(id)) drafts.set(id, text)
+      }
+      // Something was started or closed meanwhile: it replaces what was stored.
+      if (heldProject?.clear) clearStoredWorkspace()
+      else if (heldProject) writeWorkspace(heldProject.workspace)
+      if (heldHistory) writeHistory(heldHistory)
+      heldProject = null
+      heldHistory = null
     },
   }
 }

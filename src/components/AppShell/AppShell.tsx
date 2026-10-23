@@ -78,6 +78,7 @@ export function AppShell({ session }: { session: SavedSession }) {
     reset,
     show,
     clearHistory,
+    mergeHistory,
   } = useExplanation(session.history)
 
   // Remember the project and history in this browser across reloads.
@@ -94,6 +95,31 @@ export function AppShell({ session }: { session: SavedSession }) {
       : null,
     explanationState.history,
   )
+
+  // The saved session took too long to read, so the app started without it.
+  // When the read finishes, hand it to the writer, put Recent back, and offer
+  // the project on the start screen, unless something new was started since.
+  const hasSessionNow = useRef(hasSession)
+  useEffect(() => {
+    hasSessionNow.current = hasSession
+  })
+  const restoreWorkspace = workspace.restore
+  useEffect(() => {
+    if (!session.late) return
+    let current = true
+    void session.late.then((late) => {
+      if (!current) return
+      writer.adopt(late)
+      mergeHistory(late.history)
+      if (late.workspace && !hasSessionNow.current) {
+        restoreWorkspace(late.workspace)
+        setHasSession(true)
+      }
+    })
+    return () => {
+      current = false
+    }
+  }, [session.late, writer, mergeHistory, restoreWorkspace])
 
   const isMobile = useIsMobile()
   const [selection, setSelection] = useState<CodeSelection | null>(null)
