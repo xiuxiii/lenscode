@@ -260,6 +260,38 @@ export function CodeEditor({
     }
   }, [updatePopover])
 
+  // The editor owns the text while someone types; the workspace follows it
+  // through onChange. Passing the text back as a controlled value would let a
+  // render that lags a keystroke behind overwrite what was just typed, so it
+  // is only pushed in when it changed from outside (a file re-opened from
+  // disk). Text the editor sent out is remembered until the workspace echoes
+  // it back, so a late echo is recognised and left alone.
+  const sentOut = useRef<string[]>([])
+  const handleChange = (value: string | undefined) => {
+    const text = value ?? ''
+    sentOut.current.push(text)
+    if (sentOut.current.length > 200) sentOut.current.shift()
+    onChange(text)
+  }
+  useEffect(() => {
+    const editor = editorRef.current
+    const model = editor?.getModel()
+    if (!editor || !model) return
+    if (model.getValue() === file.content) {
+      sentOut.current = []
+      return
+    }
+    const echo = sentOut.current.lastIndexOf(file.content)
+    if (echo !== -1) {
+      // A late echo of our own typing: newer text is already in the editor.
+      sentOut.current.splice(0, echo + 1)
+      return
+    }
+    sentOut.current = []
+    editor.executeEdits('workspace', [{ range: model.getFullModelRange(), text: file.content }])
+    editor.pushUndoStop()
+  }, [file.id, file.content])
+
   // Same for a blank file opened while the editor is already showing.
   const isBlank = file.content === ''
   useEffect(() => {
@@ -303,14 +335,15 @@ export function CodeEditor({
         // that happened to have the same path (e.g. two package.json files).
         path={file.id}
         language={file.language}
-        value={file.content}
+        // Seeds a file's model the first time it is shown; see sentOut above.
+        defaultValue={file.content}
         theme={LENS_THEME}
         options={EDITOR_OPTIONS}
         // A switched-to file starts with no selection, matching the reset panel.
         saveViewState={false}
         loading={<EditorLoading />}
         onMount={handleMount}
-        onChange={(value) => onChange(value ?? '')}
+        onChange={handleChange}
       />
       {isBlank && contentLeft !== null && (
         <p className="code-editor__placeholder" style={{ left: contentLeft }} aria-hidden="true">
