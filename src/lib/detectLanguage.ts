@@ -179,6 +179,7 @@ const SIGNALS: Partial<Record<LanguageId, Signal[]>> = {
     [/^(name|on|jobs|steps|runs-on|uses|services|image|version|env|with|ports|volumes|apiVersion|kind|metadata|spec|dependencies|scripts):/m, 2],
   ],
   markdown: [
+    // Headings come first: scoreLanguages() may set this one aside (see there).
     [/^#{1,6} \S/m, 2],
     [/\[[^\]\n]+\]\([^)\n]+\)/m, 3],
     [/^```/m, 3],
@@ -212,6 +213,11 @@ const COMPILED_TS = compile(TYPESCRIPT_ONLY)
 
 /** Ties go to the language listed first in `LANGUAGES`. */
 const ORDER = LANGUAGES.map((l) => l.id)
+
+/** Languages whose comments start with "#", which look like Markdown headings. */
+const HASH_COMMENT_LANGUAGES: LanguageId[] = ['python', 'shell', 'ruby', 'yaml', 'powershell', 'dockerfile']
+/** Every Markdown signal except headings (the first). */
+const MARKDOWN_OTHER = COMPILED.markdown!.slice(1)
 
 function score(text: string, signals: Signal[]): number {
   let total = 0
@@ -248,6 +254,13 @@ export function scoreLanguages(content: string): Map<LanguageId, number> {
   for (const id of ORDER) {
     const signals = COMPILED[id]
     if (signals) scores.set(id, score(text, signals))
+  }
+  // "# Ask for a name" is a heading in Markdown but a comment in Python,
+  // shell and friends. When headings are Markdown's only evidence and one of
+  // those languages fits the rest of the code, they are comments.
+  const otherMarkdown = score(text, MARKDOWN_OTHER)
+  if (otherMarkdown === 0 && HASH_COMMENT_LANGUAGES.some((id) => (scores.get(id) ?? 0) > 0)) {
+    scores.set('markdown', 0)
   }
   const typescriptMarkers = score(text, COMPILED_TS)
   if (typescriptMarkers > 0) {
