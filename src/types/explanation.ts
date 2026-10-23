@@ -135,6 +135,19 @@ export interface FollowUpRequest {
   question: string
 }
 
+/**
+ * Size limits for a follow-up request. The server rejects anything larger;
+ * the browser trims to them before sending, so a thread never gets stuck.
+ */
+export const FOLLOW_UP_LIMITS = {
+  /** Characters in a question. */
+  questionChars: 2_000,
+  /** Characters in each earlier answer, and in each explanation field. */
+  textChars: 6_000,
+  /** Earlier question/answer pairs the server accepts. */
+  previousTurns: 10,
+} as const
+
 /** What `askFollowUp()` resolves to: plain text, with identifiers in "double quotes". */
 export interface FollowUpAnswer {
   answer: string

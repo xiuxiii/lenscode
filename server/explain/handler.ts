@@ -5,6 +5,7 @@ import {
 } from '../../src/services/parseExplanation.ts'
 import {
   ExplanationError,
+  FOLLOW_UP_LIMITS,
   type ExplainedText,
   type ExplanationRequest,
   type FollowUpRequest,
@@ -35,11 +36,11 @@ import { buildFollowUpMessages, buildMessages } from './prompt.ts'
 
 const MAX_SELECTION_CHARS = 8_000
 const MAX_SOURCE_CHARS = 500_000
-const MAX_QUESTION_CHARS = 2_000
-/** Per explanation field and per earlier answer; far above what the model writes. */
-const MAX_TEXT_CHARS = 6_000
-/** Earlier turns sent with a question; older ones are dropped by the browser. */
-const MAX_PREVIOUS_TURNS = 10
+const {
+  questionChars: MAX_QUESTION_CHARS,
+  textChars: MAX_TEXT_CHARS,
+  previousTurns: MAX_PREVIOUS_TURNS,
+} = FOLLOW_UP_LIMITS
 const LANGUAGE_IDS = new Set<string>(LANGUAGES.map((l) => l.id))
 
 function json(status: number, body: unknown): Response {

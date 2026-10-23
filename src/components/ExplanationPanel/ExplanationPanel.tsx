@@ -5,7 +5,11 @@ import { useFollowUps } from '../../hooks/useFollowUps'
 import { renderProse } from '../../lib/prose'
 import { normalizeSelection } from '../../lib/selection'
 import { EXPLAIN_SHORTCUT } from '../../lib/shortcuts'
-import type { Explanation, ExplanationErrorCode } from '../../types/explanation'
+import {
+  FOLLOW_UP_LIMITS,
+  type Explanation,
+  type ExplanationErrorCode,
+} from '../../types/explanation'
 import type { CodeSelection, LanguageId } from '../../types/workspace'
 import { AlertIcon, ArrowUpIcon, CursorTextIcon, RetryIcon } from '../icons'
 import { ExplanationSection } from './ExplanationSection'
@@ -27,8 +31,6 @@ interface ExplanationPanelProps {
 /** Selections this short (and on one line) are shown as a title; longer ones as a code block. */
 const TITLE_MAX_CHARS = 32
 const BLOCK_MAX_LINES = 6
-/** Matches the follow-up route's limit. */
-const MAX_QUESTION_CHARS = 2_000
 
 /** What is being explained: the code as a title (or block), plus one line under it. */
 function Subject({
@@ -178,7 +180,7 @@ function AskComposer({ busy, onAsk }: { busy: boolean; onAsk: (question: string)
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="Ask a follow-up…"
           aria-label="Ask a follow-up question"
-          maxLength={MAX_QUESTION_CHARS}
+          maxLength={FOLLOW_UP_LIMITS.questionChars}
         />
         <button
           type="submit"

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { askFollowUp } from '../services/explanationService'
 import {
   ExplanationError,
+  FOLLOW_UP_LIMITS,
   type Explanation,
   type ExplanationRequest,
   type FollowUpTurn,
@@ -16,8 +17,13 @@ export interface FollowUp {
   error: ExplanationError | null
 }
 
-/** Earlier turns sent with each question; the server accepts up to 10. */
-const CONTEXT_TURNS = 6
+/** Earlier turns sent with each question (the server accepts up to 10). */
+const CONTEXT_TURNS = Math.min(6, FOLLOW_UP_LIMITS.previousTurns)
+
+/** Keep earlier text within the server's limit, so one long answer can't block the thread. */
+function clip(text: string, max: number = FOLLOW_UP_LIMITS.textChars): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text
+}
 
 const NO_FOLLOW_UPS: FollowUp[] = []
 
@@ -33,7 +39,8 @@ function answeredBefore(list: FollowUp[], index: number): FollowUpTurn[] {
 /**
  * The follow-up questions asked about the explanation on screen. Showing a
  * different explanation starts a fresh, empty thread (and cancels an answer
- * still on its way). One question is answered at a time.
+ * still on its way), including when the same explanation is shown again
+ * later. One question is answered at a time.
  */
 export function useFollowUps(explanation: Explanation | null, request: ExplanationRequest | null) {
   const forId = explanation?.id ?? null
@@ -45,8 +52,17 @@ export function useFollowUps(explanation: Explanation | null, request: Explanati
   const controllerRef = useRef<AbortController | null>(null)
   const nextId = useRef(0)
 
-  // A new explanation (or none) abandons the old thread's pending answer.
-  useEffect(() => () => controllerRef.current?.abort(), [forId])
+  // A new explanation (or none) abandons the old thread and its pending
+  // answer. Clearing it matters: an answer cancelled here never resolves, so
+  // a kept thread would show it as loading forever if this explanation came
+  // back (e.g. reopened from Recent).
+  useEffect(
+    () => () => {
+      controllerRef.current?.abort()
+      setThread({ forId: null, items: [] })
+    },
+    [forId],
+  )
 
   const update = useCallback(
     (id: string, change: Partial<FollowUp>) =>
@@ -69,13 +85,16 @@ export function useFollowUps(explanation: Explanation | null, request: Explanati
           {
             request,
             explanation: {
-              concept: explanation.concept,
-              simpleExplanation: explanation.simpleExplanation,
-              definition: explanation.definition,
-              contextualExplanation: explanation.contextualExplanation,
-              whyItExists: explanation.whyItExists,
+              concept: clip(explanation.concept),
+              simpleExplanation: clip(explanation.simpleExplanation),
+              definition: clip(explanation.definition),
+              contextualExplanation: clip(explanation.contextualExplanation),
+              whyItExists: clip(explanation.whyItExists),
             },
-            previous: previous.slice(-CONTEXT_TURNS),
+            previous: previous.slice(-CONTEXT_TURNS).map((turn) => ({
+              question: clip(turn.question, FOLLOW_UP_LIMITS.questionChars),
+              answer: clip(turn.answer),
+            })),
             question: item.question,
           },
           { signal: controller.signal },
