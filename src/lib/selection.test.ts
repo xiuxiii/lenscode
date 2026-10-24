@@ -1,0 +1,31 @@
+import { describe, expect, it } from 'vitest'
+import { normalizeSelection } from './selection'
+
+describe('normalizeSelection', () => {
+  it('trims and collapses whitespace', () => {
+    expect(normalizeSelection('  const   x =\n  1  ')).toBe('const x = 1')
+  })
+
+  it('drops trailing semicolons and commas', () => {
+    expect(normalizeSelection('foo();')).toBe('foo()')
+    expect(normalizeSelection('a, b,,')).toBe('a, b')
+    expect(normalizeSelection('x;  ')).toBe('x')
+  })
+
+  it('keeps semicolons and commas that are not at the end', () => {
+    expect(normalizeSelection('for (;;) {}')).toBe('for (;;) {}')
+  })
+
+  it('ignores case', () => {
+    expect(normalizeSelection('SELECT * FROM t')).toBe(normalizeSelection('select * from t'))
+  })
+
+  it('makes a re-highlight of the same code compare equal', () => {
+    expect(normalizeSelection('await fetch(url);')).toBe(normalizeSelection(' await fetch(url) '))
+  })
+
+  it('returns an empty string for whitespace or punctuation-only input', () => {
+    expect(normalizeSelection('  \n ')).toBe('')
+    expect(normalizeSelection(' ; ')).toBe('')
+  })
+})
