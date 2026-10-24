@@ -376,7 +376,7 @@ describe('toAnkiText', () => {
       ),
     ])
     expect(text).toBe(
-      '#separator:tab\n' +
+      '#separator:Tab\n' +
         '#html:true\n' +
         "<pre style='display:inline-block;text-align:left'>git push --force</pre><br><small>Terminal command</small>" +
         '\t' +
@@ -406,6 +406,6 @@ describe('toAnkiText', () => {
   })
 
   it('writes just the header for no cards', () => {
-    expect(toAnkiText([])).toBe('#separator:tab\n#html:true\n')
+    expect(toAnkiText([])).toBe('#separator:Tab\n#html:true\n')
   })
 })

@@ -209,7 +209,7 @@ export function toAnkiText(cards: Flashcard[]): string {
     ].join('<br><br>')
     return `${front}\t${back}`
   })
-  return ['#separator:tab', '#html:true', ...lines].join('\n') + '\n'
+  return ['#separator:Tab', '#html:true', ...lines].join('\n') + '\n'
 }
 
 // ─────────────────────────── Storage (localStorage) ───────────────────────────
