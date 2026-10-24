@@ -197,5 +197,7 @@ export function useWorkspace(initial: SavedWorkspace | null) {
     addFiles,
     startBlank,
     openTutorial,
+    /** Show a saved session (one that finished loading late). */
+    restore: load,
   }
 }

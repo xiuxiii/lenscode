@@ -130,6 +130,7 @@ Your project, its files (including edits), the open file and your recent explana
 - **Where a reload lands:** back in your saved session if there is one. The tutorial and a first visit start on the start screen, which offers to continue the last session.
 - **Starting over:** starting a new session replaces the current one. The **×** in the sidebar closes the session and forgets it (your files on disk are not touched); the tutorial is restarted from the start screen. **Clear** empties Recent.
 - **Safe failure:** if storage is unavailable (some private windows) or the saved data is unreadable or from an incompatible version, the app starts fresh rather than breaking. `loadSession()` is awaited before the first render, with a 1.5 s cap, so a reload never flashes the start screen before your session.
+- **Slow storage never loses data:** if reading the saved session takes longer than 1.5 s, the app starts on the start screen without it and writes nothing until the read finishes. The project then appears under "Pick up where you left off" and Recent is merged back in. If you started something new in the meantime, that new session replaces the old one, as it always does.
 
 Two tabs open at once share the same save, and the last one to save wins.
 
