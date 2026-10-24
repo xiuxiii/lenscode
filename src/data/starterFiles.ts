@@ -42,6 +42,9 @@ listed under Recent, and reopening one is instant.
   you run it.
 - app.py: the same idea as fetchUsers.js, written in Python.
 - index.html and styles.css: how a web page is put together.
+- more-examples/: the same kind of code in SQL, Go, Rust, Java, C, C++, C#,
+  PHP, Ruby, YAML, PowerShell and a Dockerfile, plus git-basics.sh, the
+  everyday git commands (and two to be careful with).
 
 ## Ready for your own code?
 
@@ -172,6 +175,381 @@ fetch_users()
     "react": "^19.0.0"
   }
 }
+`,
+  },
+  {
+    id: 'more-users-sql',
+    name: 'users.sql',
+    path: 'more-examples/users.sql',
+    language: 'sql',
+    content: `-- A table of users, and a few questions you might ask it.
+-- Highlight any keyword (SELECT, WHERE, JOIN...) to see what it does.
+
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT UNIQUE,
+  signed_up DATE
+);
+
+INSERT INTO users (name, email, signed_up)
+VALUES ('Ada', 'ada@example.com', '2024-01-15'),
+       ('Linus', 'linus@example.com', '2024-03-02');
+
+-- Everyone who signed up this year, newest first.
+SELECT name, email
+FROM users
+WHERE signed_up >= '2024-01-01'
+ORDER BY signed_up DESC;
+
+-- How many orders each user has placed.
+SELECT users.name, COUNT(orders.id) AS order_count
+FROM users
+LEFT JOIN orders ON orders.user_id = users.id
+GROUP BY users.name;
+`,
+  },
+  {
+    id: 'more-main-go',
+    name: 'main.go',
+    path: 'more-examples/main.go',
+    language: 'go',
+    content: `// A tiny program that looks up a user, in Go.
+package main
+
+import (
+	"errors"
+	"fmt"
+)
+
+type User struct {
+	Name  string
+	Email string
+}
+
+func findUser(users []User, name string) (User, error) {
+	for _, user := range users {
+		if user.Name == name {
+			return user, nil
+		}
+	}
+	return User{}, errors.New("user not found")
+}
+
+func main() {
+	users := []User{
+		{Name: "Ada", Email: "ada@example.com"},
+		{Name: "Linus", Email: "linus@example.com"},
+	}
+
+	user, err := findUser(users, "Ada")
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	fmt.Println("Found", user.Name, "at", user.Email)
+}
+`,
+  },
+  {
+    id: 'more-main-rs',
+    name: 'main.rs',
+    path: 'more-examples/main.rs',
+    language: 'rust',
+    content: `// The same user lookup, written in Rust.
+struct User {
+    name: String,
+    email: String,
+}
+
+fn find_user<'a>(users: &'a [User], name: &str) -> Option<&'a User> {
+    users.iter().find(|user| user.name == name)
+}
+
+fn main() {
+    let users = vec![
+        User { name: String::from("Ada"), email: String::from("ada@example.com") },
+        User { name: String::from("Linus"), email: String::from("linus@example.com") },
+    ];
+
+    match find_user(&users, "Ada") {
+        Some(user) => println!("Found {} at {}", user.name, user.email),
+        None => println!("User not found"),
+    }
+
+    let mut count = 0;
+    for _user in &users {
+        count += 1;
+    }
+    println!("There are {} users", count);
+}
+`,
+  },
+  {
+    id: 'more-userlist-java',
+    name: 'UserList.java',
+    path: 'more-examples/UserList.java',
+    language: 'java',
+    content: `import java.util.ArrayList;
+import java.util.List;
+
+// A list of users, in Java. Every Java program starts in a "main" method.
+public class UserList {
+    private final List<String> names = new ArrayList<>();
+
+    public void add(String name) {
+        names.add(name);
+    }
+
+    public int size() {
+        return names.size();
+    }
+
+    public static void main(String[] args) {
+        UserList users = new UserList();
+        users.add("Ada");
+        users.add("Linus");
+
+        for (String name : users.names) {
+            System.out.println("Hello, " + name);
+        }
+        System.out.println("Total: " + users.size());
+    }
+}
+`,
+  },
+  {
+    id: 'more-names-c',
+    name: 'names.c',
+    path: 'more-examples/names.c',
+    language: 'c',
+    content: `#include <stdio.h>
+#include <string.h>
+
+/* Prints each user's name and how many letters it has, in C. */
+int main(void) {
+    const char *users[] = {"Ada", "Linus", "Grace"};
+    int count = sizeof(users) / sizeof(users[0]);
+
+    for (int i = 0; i < count; i++) {
+        printf("%s has %zu letters\\n", users[i], strlen(users[i]));
+    }
+    return 0;
+}
+`,
+  },
+  {
+    id: 'more-users-cpp',
+    name: 'users.cpp',
+    path: 'more-examples/users.cpp',
+    language: 'cpp',
+    content: `#include <iostream>
+#include <string>
+#include <vector>
+
+// The same list of users, in C++.
+int main() {
+    std::vector<std::string> users = {"Ada", "Linus", "Grace"};
+    users.push_back("Margaret");
+
+    for (const auto& name : users) {
+        std::cout << "Hello, " << name << std::endl;
+    }
+    std::cout << users.size() << " users" << std::endl;
+    return 0;
+}
+`,
+  },
+  {
+    id: 'more-program-cs',
+    name: 'Program.cs',
+    path: 'more-examples/Program.cs',
+    language: 'csharp',
+    content: `using System;
+using System.Collections.Generic;
+using System.Linq;
+
+// A list of users, in C#.
+namespace UserDirectory
+{
+    public class User
+    {
+        public string Name { get; set; }
+        public string Email { get; set; }
+    }
+
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            var users = new List<User>
+            {
+                new User { Name = "Ada", Email = "ada@example.com" },
+                new User { Name = "Linus", Email = "linus@example.com" },
+            };
+
+            var names = users.Select(u => u.Name).OrderBy(n => n);
+            foreach (var name in names)
+            {
+                Console.WriteLine($"Hello, {name}");
+            }
+        }
+    }
+}
+`,
+  },
+  {
+    id: 'more-users-php',
+    name: 'users.php',
+    path: 'more-examples/users.php',
+    language: 'php',
+    content: `<?php
+// A web page that lists users, in PHP.
+$users = [
+    ['name' => 'Ada', 'email' => 'ada@example.com'],
+    ['name' => 'Linus', 'email' => 'linus@example.com'],
+];
+
+function greet(string $name): string {
+    return "Hello, " . htmlspecialchars($name);
+}
+?>
+<ul>
+<?php foreach ($users as $user): ?>
+  <li><?= greet($user['name']) ?></li>
+<?php endforeach; ?>
+</ul>
+`,
+  },
+  {
+    id: 'more-users-rb',
+    name: 'users.rb',
+    path: 'more-examples/users.rb',
+    language: 'ruby',
+    content: `# A list of users, in Ruby.
+class User
+  attr_reader :name, :email
+
+  def initialize(name, email)
+    @name = name
+    @email = email
+  end
+
+  def greeting
+    "Hello, #{name}!"
+  end
+end
+
+users = [
+  User.new("Ada", "ada@example.com"),
+  User.new("Linus", "linus@example.com")
+]
+
+users.each do |user|
+  puts user.greeting
+end
+
+puts "#{users.length} users"
+`,
+  },
+  {
+    id: 'more-ci-yml',
+    name: 'ci.yml',
+    path: 'more-examples/ci.yml',
+    language: 'yaml',
+    content: `# Runs the tests on GitHub every time someone pushes code.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm test
+`,
+  },
+  {
+    id: 'more-dockerfile',
+    name: 'Dockerfile',
+    path: 'more-examples/Dockerfile',
+    language: 'dockerfile',
+    content: `# Packages the app into a container image that runs the same everywhere.
+FROM node:22-alpine
+
+WORKDIR /app
+
+# Install dependencies first, so this step is cached between builds.
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+EXPOSE 3000
+CMD ["npm", "start"]
+`,
+  },
+  {
+    id: 'more-git-basics-sh',
+    name: 'git-basics.sh',
+    path: 'more-examples/git-basics.sh',
+    language: 'shell',
+    content: `# Everyday git commands, in the order you'd usually use them.
+# Highlight one to see what it does before you run it.
+
+# Get a copy of a project
+git clone https://github.com/user/project.git
+cd project
+
+# See what you've changed
+git status
+git diff
+
+# Save your changes
+git add .
+git commit -m "Describe what you changed"
+
+# Work on something new without touching main
+git checkout -b my-feature
+git push -u origin my-feature
+
+# Get other people's changes
+git pull
+
+# Careful: these throw work away and can't easily be undone
+git reset --hard HEAD
+git push --force
+`,
+  },
+  {
+    id: 'more-cleanup-ps1',
+    name: 'cleanup.ps1',
+    path: 'more-examples/cleanup.ps1',
+    language: 'powershell',
+    content: `# Windows PowerShell: look around and tidy a project folder.
+# Highlight a line to see what it does before you run it.
+
+# Where am I, and what's here?
+Get-Location
+Get-ChildItem
+
+# Set a variable for this window only
+$env:NODE_ENV = "development"
+
+# Delete the build folder (careful: it skips the Recycle Bin)
+Remove-Item -Path .\\dist -Recurse -Force
+
+# Find every TODO in the JavaScript files
+Get-ChildItem -Recurse -Filter *.js | Select-String "TODO"
 `,
   },
 ]
