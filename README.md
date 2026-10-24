@@ -25,9 +25,19 @@ npm run dev        # http://localhost:5173
 npm run build      # typecheck + production build into dist/
 npm run preview    # serve dist/ (including /api/explain)
 npm run lint
+npm test           # unit tests (Vitest), about a second; npm run test:watch to re-run on save
 ```
 
 Node 20.3+ is required for the API route; 22 is recommended.
+
+### Tests
+
+The tests sit next to the code they cover (`*.test.ts`) and need no API key: the AI provider is replaced by a fake `fetch`. They cover:
+
+- **Language detection:** a corpus of 75 snippets across every supported language, plus file-name hints and the "don't flicker while typing" rules.
+- **Opening files:** secrets are never read, dependency/build folders, binaries and oversized files are left out, and the size and count caps.
+- **The API route:** request validation, the prompt sent upstream, and every error the panel can show (bad key, no credit, rate limits, timeouts, malformed or truncated answers). Also checks that the key never appears in an error or a log line.
+- **The browser side:** answer parsing and how `explainCode()` maps failures.
 
 ### Adding your API key (DeepSeek)
 
