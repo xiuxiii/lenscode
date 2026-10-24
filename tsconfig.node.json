@@ -6,7 +6,7 @@
     "types": ["node"],
     "skipLibCheck": true,
 
-    /* Bundler mode — vite.config.ts and server/ are bundled by Vite */
+    /* Bundler mode — vite.config.ts, server/ and cli/ are bundled by Vite */
     "module": "esnext",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
@@ -20,5 +20,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "vitest.config.ts", "server"]
+  "include": ["vite.config.ts", "vitest.config.ts", "server", "cli"]
 }

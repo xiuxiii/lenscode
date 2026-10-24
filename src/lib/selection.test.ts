@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeSelection } from './selection'
+import { normalizeSelection, wholeRange } from './selection'
 
 describe('normalizeSelection', () => {
   it('trims and collapses whitespace', () => {
@@ -27,5 +27,24 @@ describe('normalizeSelection', () => {
   it('returns an empty string for whitespace or punctuation-only input', () => {
     expect(normalizeSelection('  \n ')).toBe('')
     expect(normalizeSelection(' ; ')).toBe('')
+  })
+})
+
+describe('wholeRange', () => {
+  it('covers one line, ending just past its last character', () => {
+    expect(wholeRange('git push --force')).toEqual({ startLine: 1, startColumn: 1, endLine: 1, endColumn: 17 })
+  })
+
+  it('covers every line of a longer text', () => {
+    expect(wholeRange('for f in *; do\n  echo "$f"\ndone')).toEqual({
+      startLine: 1,
+      startColumn: 1,
+      endLine: 3,
+      endColumn: 5,
+    })
+  })
+
+  it('ends at column 1 of the last line after a trailing newline, as Monaco does', () => {
+    expect(wholeRange('ls\n')).toEqual({ startLine: 1, startColumn: 1, endLine: 2, endColumn: 1 })
   })
 })

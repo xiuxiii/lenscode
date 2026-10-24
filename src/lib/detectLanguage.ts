@@ -96,7 +96,9 @@ const SIGNALS: Partial<Record<LanguageId, Signal[]>> = {
   ],
   css: [
     [/^\s*(color|background(-color|-image)?|margin(-\w+)?|padding(-\w+)?|display|font(-size|-weight|-family)?|width|height|max-width|min-height|border(-radius|-\w+)?|position|flex(-\w+)?|grid(-\w+)?|justify-content|align-items|text-align|z-index|opacity|transition|transform|box-shadow|top|left|right|bottom|overflow|cursor|gap|line-height)\s*:\s*[^;]+;/m, 3],
-    [/[.#]?[\w-]+[\w\s.#:>+~-]*\{[^}]*\b[a-z-]+\s*:\s*[^;{}]+;[^}]*\}/m, 4],
+    // One [\w-], not [\w-]+: the class after it covers the rest, and two
+    // overlapping repeats took minutes on a long line with no spaces.
+    [/[.#]?[\w-][\w\s.#:>+~-]*\{[^}]*\b[a-z-]+\s*:\s*[^;{}]+;[^}]*\}/m, 4],
     [/^\s*@(media|import|keyframes|font-face|tailwind|apply|layer|supports)\b/m, 4],
     [/:(hover|focus|active|before|after|root|nth-child|first-child|last-child)\b/m, 2],
     [/\b\d+(\.\d+)?(px|rem|em|vh|vw)\b/m, 1],
