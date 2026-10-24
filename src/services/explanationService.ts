@@ -4,18 +4,21 @@ import {
   type Explanation,
   type ExplanationErrorCode,
   type ExplanationRequest,
+  type FollowUpAnswer,
+  type FollowUpRequest,
 } from '../types/explanation'
-import { parseExplanationResponse } from './parseExplanation'
+import { parseExplanationResponse, parseFollowUpAnswer } from './parseExplanation'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────
  *  The one door between the UI and whatever produces explanations.
  * ─────────────────────────────────────────────────────────────────────────
  *
- *   explainCode() → POST /api/explain → server/explain → LLM provider
+ *   explainCode() → POST /api/explain  → server/explain → LLM provider
+ *   askFollowUp() → POST /api/followup → server/explain → LLM provider
  *
- * Everything the UI knows about explanations is `explainCode()` and the
- * `Explanation` type. It does not know which model runs, how the prompt is
+ * Everything the UI knows about explanations is these two functions and the
+ * types they take and return. It does not know which model runs, how the prompt is
  * built or how auth works — none of that belongs in code shipped to the
  * browser, and the API key must never appear in this directory or in any
  * `VITE_`-prefixed variable (everything Vite inlines is public). See the
@@ -24,6 +27,8 @@ import { parseExplanationResponse } from './parseExplanation'
 
 /** Same-origin `/api/explain` by default; override only for a backend hosted elsewhere. */
 const API_URL = import.meta.env.VITE_EXPLANATION_API_URL || '/api/explain'
+/** Next to the explain route: its final `/explain` becomes `/followup`. */
+const FOLLOW_UP_URL = `${API_URL.replace(/\/(explain\/?)?$/, '')}/followup`
 
 /** Slightly longer than the server's own LLM timeout, so the server's clearer error wins. */
 const TIMEOUT_MS = 45_000
@@ -81,44 +86,34 @@ function errorForStatus(status: number): ExplanationError {
 }
 
 /**
- * Explain a piece of code.
- *
- * @param request  What to explain and the context it sits in.
- * @param options  `signal` cancels a superseded request.
- * @returns        A validated `Explanation`.
- * @throws         `ExplanationError` with a code the panel can present —
- *                 never an unhandled rejection.
+ * POST `body` as JSON and return the response's JSON, or throw an
+ * `ExplanationError` the panel can present. `signal` cancels it.
  */
-export async function explainCode(
-  request: ExplanationRequest,
-  options?: ExplainOptions,
-): Promise<Explanation> {
+async function postJson(url: string, body: unknown, options?: ExplainOptions): Promise<unknown> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
   const onAbort = () => controller.abort()
   options?.signal?.addEventListener('abort', onAbort, { once: true })
 
   try {
-    const response = await fetch(API_URL, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
+      body: JSON.stringify(body),
       signal: controller.signal,
     })
     if (!response.ok) {
       throw (await errorFromBody(response)) ?? errorForStatus(response.status)
     }
 
-    let body: unknown
     try {
-      body = await response.json()
+      return await response.json()
     } catch {
       throw new ExplanationError(
         'invalid_response',
         'The explanation service returned a response that could not be read.',
       )
     }
-    return parseExplanationResponse(body, request)
   } catch (err) {
     if (err instanceof ExplanationError) throw err
     // The caller cancelled (new selection, unmount) vs. our own timeout.
@@ -136,4 +131,35 @@ export async function explainCode(
     clearTimeout(timer)
     options?.signal?.removeEventListener('abort', onAbort)
   }
+}
+
+/**
+ * Explain a piece of code.
+ *
+ * @param request  What to explain and the context it sits in.
+ * @param options  `signal` cancels a superseded request.
+ * @returns        A validated `Explanation`.
+ * @throws         `ExplanationError` with a code the panel can present —
+ *                 never an unhandled rejection.
+ */
+export async function explainCode(
+  request: ExplanationRequest,
+  options?: ExplainOptions,
+): Promise<Explanation> {
+  return parseExplanationResponse(await postJson(API_URL, request, options), request)
+}
+
+/**
+ * Answer a follow-up question about an explanation the reader has seen.
+ *
+ * @param request  The question, the explanation it is about, and the thread so far.
+ * @param options  `signal` cancels it (e.g. a new explanation replaced the thread).
+ * @returns        The validated answer.
+ * @throws         `ExplanationError`, like `explainCode()`.
+ */
+export async function askFollowUp(
+  request: FollowUpRequest,
+  options?: ExplainOptions,
+): Promise<FollowUpAnswer> {
+  return parseFollowUpAnswer(await postJson(FOLLOW_UP_URL, request, options))
 }

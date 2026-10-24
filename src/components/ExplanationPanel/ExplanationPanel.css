@@ -319,32 +319,79 @@
   margin-top: 12px;
 }
 
+/* ─────────────────────────── Follow-up thread ───────────────────────────
+ * Below the explanation, inside the scroll area: each question as a quiet
+ * card, its answer as body text under it.
+ */
+.follow-ups {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.follow-up {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scroll-margin-top: 16px;
+  animation: lens-fade 160ms ease-out;
+}
+
+.follow-up__question {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  color: var(--text);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.follow-up__answer {
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  color: var(--text-2);
+}
+
+.follow-up__loading {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.follow-up__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.follow-up__error-icon {
+  flex-shrink: 0;
+  margin-top: 6px;
+  color: var(--danger);
+}
+
+.follow-up__error-message {
+  flex: 1;
+  min-width: 0;
+  padding-top: 4px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-2);
+}
+
 /* ─────────────────────────────── Ask composer ─────────────────────────────── */
 .panel-ask {
   flex-shrink: 0;
   padding: 12px 20px 16px;
   animation: lens-fade 160ms ease-out;
-}
-
-.panel-ask__thread {
-  margin-bottom: 12px;
-  padding: 12px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-}
-
-.panel-ask__question {
-  margin-bottom: 4px;
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-  font-weight: 500;
-  color: var(--text);
-}
-
-.panel-ask__answer {
-  font-size: var(--text-sm);
-  line-height: var(--leading-sm);
-  color: var(--text-3);
 }
 
 .composer {

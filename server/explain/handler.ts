@@ -1,19 +1,30 @@
 import { LANGUAGES } from '../../src/data/languages.ts'
-import { parseExplanationResponse } from '../../src/services/parseExplanation.ts'
+import {
+  parseExplanationResponse,
+  parseFollowUpAnswer,
+} from '../../src/services/parseExplanation.ts'
 import {
   ExplanationError,
+  FOLLOW_UP_LIMITS,
+  type ExplainedText,
   type ExplanationRequest,
+  type FollowUpRequest,
+  type FollowUpTurn,
   type SourceRange,
 } from '../../src/types/explanation.ts'
 import type { LanguageId } from '../../src/types/workspace.ts'
 import type { LlmConfig } from './config.ts'
 import { ExplainRouteError, requestCompletion } from './llmClient.ts'
-import { buildMessages } from './prompt.ts'
+import { buildFollowUpMessages, buildMessages } from './prompt.ts'
 
 /**
  * `POST /api/explain` — the backend half of `explainCode()`.
  *
  *   ExplanationRequest JSON  →  prompt  →  LLM  →  validated Explanation JSON
+ *
+ * `POST /api/followup` — the backend half of `askFollowUp()`.
+ *
+ *   FollowUpRequest JSON  →  prompt  →  LLM  →  validated FollowUpAnswer JSON
  *
  * Written against the Web-standard `Request`/`Response`, so the same handler
  * can be mounted in Vite (see `server/vitePlugin.ts`) or exported from any
@@ -25,6 +36,11 @@ import { buildMessages } from './prompt.ts'
 
 const MAX_SELECTION_CHARS = 8_000
 const MAX_SOURCE_CHARS = 500_000
+const {
+  questionChars: MAX_QUESTION_CHARS,
+  textChars: MAX_TEXT_CHARS,
+  previousTurns: MAX_PREVIOUS_TURNS,
+} = FOLLOW_UP_LIMITS
 const LANGUAGE_IDS = new Set<string>(LANGUAGES.map((l) => l.id))
 
 function json(status: number, body: unknown): Response {
@@ -105,6 +121,51 @@ function readRequest(body: unknown): ExplanationRequest {
   }
 }
 
+function readText(value: unknown, field: string, max: number): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw badRequest(`${field} must be a non-empty string.`)
+  }
+  if (value.length > max) throw badRequest(`${field} is too long.`)
+  return value
+}
+
+function readFollowUpRequest(body: unknown): FollowUpRequest {
+  if (!body || typeof body !== 'object') throw badRequest('Expected a JSON object.')
+  const b = body as Record<string, unknown>
+
+  if (!b.request || typeof b.request !== 'object') {
+    throw badRequest('request must be the explanation request the question is about.')
+  }
+  const request = readRequest(b.request)
+
+  const e = b.explanation as Record<string, unknown> | undefined
+  if (!e || typeof e !== 'object') throw badRequest('explanation must be an object.')
+  const explanation: ExplainedText = {
+    concept: readText(e.concept, 'explanation.concept', MAX_TEXT_CHARS),
+    simpleExplanation: readText(e.simpleExplanation, 'explanation.simpleExplanation', MAX_TEXT_CHARS),
+    definition: readText(e.definition, 'explanation.definition', MAX_TEXT_CHARS),
+    contextualExplanation: readText(
+      e.contextualExplanation,
+      'explanation.contextualExplanation',
+      MAX_TEXT_CHARS,
+    ),
+    whyItExists: readText(e.whyItExists, 'explanation.whyItExists', MAX_TEXT_CHARS),
+  }
+
+  if (!Array.isArray(b.previous)) throw badRequest('previous must be an array.')
+  if (b.previous.length > MAX_PREVIOUS_TURNS) throw badRequest('previous has too many turns.')
+  const previous: FollowUpTurn[] = b.previous.map((turn: unknown, i) => {
+    const t = (turn ?? {}) as Record<string, unknown>
+    return {
+      question: readText(t.question, `previous[${i}].question`, MAX_QUESTION_CHARS),
+      answer: readText(t.answer, `previous[${i}].answer`, MAX_TEXT_CHARS),
+    }
+  })
+
+  const question = readText(b.question, 'question', MAX_QUESTION_CHARS)
+  return { request, explanation, previous, question }
+}
+
 /**
  * Models in JSON mode return a bare object, but other OpenAI-compatible
  * models (e.g. self-hosted ones) sometimes wrap it in a ```json fence or add
@@ -124,8 +185,16 @@ export interface ExplainHandlerOptions {
   log?: (message: string) => void
 }
 
-export function createExplainHandler({ config, log }: ExplainHandlerOptions) {
-  return async function handleExplain(request: Request): Promise<Response> {
+/**
+ * The parts both routes share: POST only, a configured key, a JSON body, and
+ * every failure mapped to `{ error: { code, message } }`. `answer` validates
+ * the body, asks the model and returns the validated result.
+ */
+function createRoute(
+  { config, log }: ExplainHandlerOptions,
+  answer: (body: unknown, config: LlmConfig, signal: AbortSignal) => Promise<unknown>,
+) {
+  return async function handle(request: Request): Promise<Response> {
     if (request.method !== 'POST') {
       return json(405, { error: { code: 'unknown', message: 'Use POST.' } })
     }
@@ -146,29 +215,7 @@ export function createExplainHandler({ config, log }: ExplainHandlerOptions) {
       } catch {
         throw badRequest('The request body is not valid JSON.')
       }
-      const explanationRequest = readRequest(body)
-
-      const content = await requestCompletion(
-        config,
-        buildMessages(explanationRequest),
-        request.signal,
-      )
-
-      let parsed: unknown
-      try {
-        parsed = extractJson(content)
-      } catch {
-        throw new ExplainRouteError(
-          'invalid_response',
-          502,
-          'The model did not answer in the expected format. Try again.',
-        )
-      }
-
-      // Same validation the browser applies; reject here so a bad answer is
-      // reported as the model's fault with a 502 rather than reaching the UI.
-      const explanation = parseExplanationResponse(parsed, explanationRequest)
-      return json(200, explanation)
+      return json(200, await answer(body, config, request.signal))
     } catch (err) {
       if (err instanceof ExplainRouteError) {
         if (err.code !== 'aborted' && err.status >= 500) log?.(`[explain] ${err.message}`)
@@ -184,4 +231,35 @@ export function createExplainHandler({ config, log }: ExplainHandlerOptions) {
       )
     }
   }
+}
+
+/** The model's raw text as a JSON value, or a 502 the panel can show. */
+function readModelJson(content: string): unknown {
+  try {
+    return extractJson(content)
+  } catch {
+    throw new ExplainRouteError(
+      'invalid_response',
+      502,
+      'The model did not answer in the expected format. Try again.',
+    )
+  }
+}
+
+export function createExplainHandler(options: ExplainHandlerOptions) {
+  return createRoute(options, async (body, config, signal) => {
+    const explanationRequest = readRequest(body)
+    const content = await requestCompletion(config, buildMessages(explanationRequest), signal)
+    // Same validation the browser applies; reject here so a bad answer is
+    // reported as the model's fault with a 502 rather than reaching the UI.
+    return parseExplanationResponse(readModelJson(content), explanationRequest)
+  })
+}
+
+export function createFollowUpHandler(options: ExplainHandlerOptions) {
+  return createRoute(options, async (body, config, signal) => {
+    const followUp = readFollowUpRequest(body)
+    const content = await requestCompletion(config, buildFollowUpMessages(followUp), signal)
+    return parseFollowUpAnswer(readModelJson(content))
+  })
 }

@@ -15,7 +15,7 @@ PASTE CODE → SELECT CODE → EXPLAIN → READ EXPLANATION
 3. Highlight a keyword, a name, a call, a command, or a whole line in the editor.
 4. Let go of the mouse and it is explained straight away (a drag, a double-click on a word, or a click on a line number all count). Selections made with the keyboard get a small **Explain** pill instead: click it, press `⌘E` / `Ctrl+E`, use the editor context menu, or click **Explain** in the tab bar.
 5. The explanation panel on the right shows what it is, the technical definition, what it does in this code, why it is here, and related concepts to learn next.
-6. Click a related concept to explain that next. The sidebar keeps a short history of what you have explained.
+6. Click a related concept to explain that next, or type a question into **Ask a follow-up…** under the explanation ("why not just…?", "what does that word mean?"). Answers appear under the explanation and remember the earlier questions in the thread. The sidebar keeps a short history of what you have explained.
 
 ## Running it
 
@@ -71,10 +71,10 @@ All tokens live in the `:root` block of `src/index.css`; component CSS uses toke
 
 ```
 server/                 Runs in Node only; never bundled for the browser
-  vitePlugin.ts         Mounts POST /api/explain on the dev + preview servers
+  vitePlugin.ts         Mounts POST /api/explain and /api/followup on the dev + preview servers
   explain/
-    handler.ts          Request → validate → prompt → LLM → validated Explanation
-    prompt.ts           The prompt and context windowing (the only place it lives)
+    handler.ts          Request → validate → prompt → LLM → validated Explanation (or follow-up answer)
+    prompt.ts           The prompts and context windowing (the only place they live)
     llmClient.ts        OpenAI-compatible chat-completions call + error mapping
     config.ts           LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
 src/
@@ -86,7 +86,7 @@ src/
     CodeEditor/         Monaco wrapper, selection tracking, pill placement, theme + workers
       EditorToolbar     Tab bar: file name, detected language, Explain
     SelectionActions/   The floating "Explain" pill
-    ExplanationPanel/   All panel states (empty, selected, loading, loaded, error) + follow-up composer
+    ExplanationPanel/   All panel states (empty, selected, loading, loaded, error) + follow-up thread and composer
       ExplanationSection, RelatedConcepts
   hooks/
     useExplanation.ts   Reducer-based state machine (idle → loading → loaded | error) with cancellation
@@ -151,13 +151,14 @@ To add a language, add an entry to `src/data/languages.ts` (its `id` must be a M
 
 ### Where the boundary is
 
-`src/services/explanationService.ts` is the only door between the UI and whatever produces explanations. It exports one function:
+`src/services/explanationService.ts` is the only door between the UI and whatever produces explanations. It exports two functions:
 
 ```ts
 const explanation = await explainCode(request, { signal })
+const { answer } = await askFollowUp({ request, explanation, previous, question }, { signal })
 ```
 
-The UI calls it through `useExplanation()` and nowhere else. It does **not** know which model runs, how auth works or how the prompt is built. Keep it that way: everything provider-specific stays on the server.
+The UI calls them through `useExplanation()` and `useFollowUps()` and nowhere else. It does **not** know which model runs, how auth works or how the prompt is built. Keep it that way: everything provider-specific stays on the server.
 
 ```
 Code selection (CodeEditor)
@@ -225,6 +226,7 @@ Plus `id`, `selectedCode`, `language` and `kind` (a `ConceptKind`, validated but
 - **Prompt.** `server/explain/prompt.ts` sends the selection plus a window of ±40 lines around it (capped at 12,000 characters), with the selected lines marked. When there is no range (a related-concept click), it sends the top of the file and tells the model the selection may be a concept name. The model is asked for the canonical field names, with identifiers in double quotes, which `renderProse()` already turns into inline code chips.
 - **Model call.** `server/explain/llmClient.ts` POSTs to `{LLM_BASE_URL}/chat/completions` with `response_format: { type: 'json_object' }`, a 40 s timeout, and the browser's abort signal, so a superseded selection cancels the upstream call instead of spending tokens.
 - **Validation.** `handler.ts` rejects malformed requests with a 400, extracts the JSON object even if a model wraps it in a fence, and runs the same `parseExplanationResponse()` the browser uses, so a bad answer becomes a clean `invalid_response` error.
+- **Follow-ups.** `POST /api/followup` takes a `FollowUpRequest`: the original `ExplanationRequest`, the explanation the reader saw, up to 6 earlier question/answer pairs (the route accepts 10), and the new question (up to 2,000 characters). `buildFollowUpMessages()` sends the same file context as the explanation, then the thread as alternating user/assistant turns, and asks for `{ "answer": "…" }`: plain text, paragraphs separated by a blank line, identifiers in double quotes. Errors use the same codes as `/api/explain`. Threads live only in the panel: a new explanation starts a fresh one, and they are not saved with Recent.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
@@ -237,7 +239,7 @@ Upstream failures come back as readable messages in the panel: a rejected key ("
 
 ### Deploying
 
-The dev and preview servers host the route. Static hosting of `dist/` alone does not, so in production `/api/explain` needs a home. `createExplainHandler()` takes a Web-standard `Request` and returns a `Response`, so on a `fetch`-style serverless runtime (Vercel, Netlify, Cloudflare) it is a few lines. The exact export shape depends on the host; this sketch is untested on any of them:
+The dev and preview servers host the routes. Static hosting of `dist/` alone does not, so in production `/api/explain` and `/api/followup` need a home. `createExplainHandler()` and `createFollowUpHandler()` each take a Web-standard `Request` and return a `Response`, so on a `fetch`-style serverless runtime (Vercel, Netlify, Cloudflare) it is a few lines. The exact export shape depends on the host; this sketch is untested on any of them:
 
 ```ts
 import { readLlmConfig } from '../server/explain/config.ts'
@@ -246,7 +248,7 @@ const handle = createExplainHandler({ config: readLlmConfig(process.env) })
 export const POST = (request: Request) => handle(request)
 ```
 
-Set `LLM_API_KEY` in the host's secret settings, not in a file. If the API is served from a different origin than the page, set `VITE_EXPLANATION_API_URL` to its URL at build time.
+Set `LLM_API_KEY` in the host's secret settings, not in a file. If the API is served from a different origin than the page, set `VITE_EXPLANATION_API_URL` to its URL at build time. Follow-ups go to the same URL with its final `/explain` replaced by `/followup` (or `/followup` appended if it has none).
 
 ### Where the API key lives
 

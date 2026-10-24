@@ -110,6 +110,49 @@ export interface ExplanationRequest {
   projectContext?: ProjectContext
 }
 
+/** The parts of an explanation a follow-up question is asked about. */
+export type ExplainedText = Pick<
+  Explanation,
+  'concept' | 'simpleExplanation' | 'definition' | 'contextualExplanation' | 'whyItExists'
+>
+
+/** One earlier question in a follow-up thread, and the answer it got. */
+export interface FollowUpTurn {
+  question: string
+  answer: string
+}
+
+/**
+ * A question about an explanation the reader has just seen. Carries the
+ * original request (so the answer can use the same code and context), the
+ * explanation itself, and the thread so far.
+ */
+export interface FollowUpRequest {
+  request: ExplanationRequest
+  explanation: ExplainedText
+  /** Earlier questions and answers in this thread, oldest first. */
+  previous: FollowUpTurn[]
+  question: string
+}
+
+/**
+ * Size limits for a follow-up request. The server rejects anything larger;
+ * the browser trims to them before sending, so a thread never gets stuck.
+ */
+export const FOLLOW_UP_LIMITS = {
+  /** Characters in a question. */
+  questionChars: 2_000,
+  /** Characters in each earlier answer, and in each explanation field. */
+  textChars: 6_000,
+  /** Earlier question/answer pairs the server accepts. */
+  previousTurns: 10,
+} as const
+
+/** What `askFollowUp()` resolves to: plain text, with identifiers in "double quotes". */
+export interface FollowUpAnswer {
+  answer: string
+}
+
 /** Why an explanation failed; the panel shows a suggestion for each. */
 export type ExplanationErrorCode =
   /** The server has no LLM_API_KEY. */
