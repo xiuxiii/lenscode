@@ -10,6 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { useExplanation } from '../../hooks/useExplanation'
+import { useFlashcards } from '../../hooks/useFlashcards'
 import { useSessionPersistence } from '../../hooks/useSessionPersistence'
 import { useWorkspace } from '../../hooks/useWorkspace'
 import { pickedFromDrop, readPickedFiles, type PickedFile } from '../../lib/importFiles'
@@ -80,6 +81,7 @@ export function AppShell({ session }: { session: SavedSession }) {
     clearHistory,
     mergeHistory,
   } = useExplanation(session.history)
+  const flashcards = useFlashcards()
 
   // Remember the project and history in this browser across reloads.
   const [writer] = useState(() => createSessionWriter(session))
@@ -518,6 +520,8 @@ export function AppShell({ session }: { session: SavedSession }) {
             onExplainSelection={explainSelection}
             onExplainConcept={explainConcept}
             onRetry={retry}
+            isFlashcard={flashcards.isSaved}
+            onToggleFlashcard={flashcards.toggle}
             sheetHandle={
               isMobile ? (
                 <div

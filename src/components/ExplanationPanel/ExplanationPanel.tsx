@@ -12,7 +12,14 @@ import {
   type ExplanationErrorCode,
 } from '../../types/explanation'
 import type { CodeSelection, LanguageId } from '../../types/workspace'
-import { AlertIcon, ArrowUpIcon, CursorTextIcon, RetryIcon } from '../icons'
+import {
+  AlertIcon,
+  ArrowUpIcon,
+  CardsIcon,
+  CheckIcon,
+  CursorTextIcon,
+  RetryIcon,
+} from '../icons'
 import { ExplanationSection } from './ExplanationSection'
 import { FollowUpThread } from './FollowUpThread'
 import { RelatedConcepts } from './RelatedConcepts'
@@ -25,6 +32,10 @@ interface ExplanationPanelProps {
   onExplainSelection: () => void
   onExplainConcept: (label: string) => void
   onRetry: () => void
+  /** Whether an explanation is saved as a flashcard. */
+  isFlashcard: (explanation: Explanation) => boolean
+  /** Save an explanation as a flashcard, or remove its card again. */
+  onToggleFlashcard: (explanation: Explanation) => void
   /** Drag handle rendered above the header when the panel is a bottom sheet. */
   sheetHandle?: ReactNode
 }
@@ -163,12 +174,32 @@ function ErrorState({
 function LoadedState({
   explanation,
   onConcept,
+  saved,
+  onToggleSaved,
 }: {
   explanation: Explanation
   onConcept: (label: string) => void
+  /** Saved as a flashcard. */
+  saved: boolean
+  onToggleSaved: () => void
 }) {
   return (
     <div className="panel-loaded">
+      <div className="panel-save">
+        <button
+          type="button"
+          className={`btn btn--secondary btn--sm${saved ? ' panel-save--saved' : ''}`}
+          onClick={onToggleSaved}
+          title={
+            saved
+              ? 'Saved to your flashcards. Click to remove it.'
+              : 'Keep this as a flashcard to practise later'
+          }
+        >
+          {saved ? <CheckIcon /> : <CardsIcon />}
+          {saved ? 'Saved as flashcard' : 'Save as flashcard'}
+        </button>
+      </div>
       <p className="panel-lead">{renderProse(explanation.simpleExplanation)}</p>
       <ExplanationSection title="Technical definition">{explanation.definition}</ExplanationSection>
       <ExplanationSection title="In this code">{explanation.contextualExplanation}</ExplanationSection>
@@ -229,6 +260,8 @@ export function ExplanationPanel({
   onExplainSelection,
   onExplainConcept,
   onRetry,
+  isFlashcard,
+  onToggleFlashcard,
   sheetHandle,
 }: ExplanationPanelProps) {
   const { status, request, explanation, error } = state
@@ -280,7 +313,14 @@ export function ExplanationPanel({
             onRetry={onRetry}
           />
         )}
-        {loaded && <LoadedState explanation={loaded} onConcept={onExplainConcept} />}
+        {loaded && (
+          <LoadedState
+            explanation={loaded}
+            onConcept={onExplainConcept}
+            saved={isFlashcard(loaded)}
+            onToggleSaved={() => onToggleFlashcard(loaded)}
+          />
+        )}
         {loaded && <FollowUpThread followUps={followUps} onRetry={retryFollowUp} />}
       </>
     )
