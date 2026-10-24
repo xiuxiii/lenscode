@@ -24,7 +24,7 @@ Open fetchUsers.js from the Files list and drag across the word \`await\`
 
 That's it: the moment you let go of the mouse, LensCode explains what you
 highlighted. (Selected with the keyboard instead? Press Ctrl+E, or Cmd+E on a
-Mac.)
+Mac. To move out of the editor with the keyboard, press Esc, then Tab.)
 
 ## 3. Read at your own pace
 
