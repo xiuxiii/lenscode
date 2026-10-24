@@ -141,7 +141,7 @@
   color: var(--text-2);
 }
 
-.panel-save--saved {
+.panel-save--saved .btn {
   background: var(--bg-active);
 }
 

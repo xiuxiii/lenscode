@@ -185,10 +185,10 @@ function LoadedState({
 }) {
   return (
     <div className="panel-loaded">
-      <div className="panel-save">
+      <div className={`panel-save${saved ? ' panel-save--saved' : ''}`}>
         <button
           type="button"
-          className={`btn btn--secondary btn--sm${saved ? ' panel-save--saved' : ''}`}
+          className="btn btn--secondary btn--sm"
           onClick={onToggleSaved}
           title={
             saved
