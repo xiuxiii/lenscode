@@ -88,6 +88,9 @@ const EDITOR_OPTIONS: MonacoEditor.IStandaloneEditorConstructionOptions = {
   links: false,
   matchBrackets: 'always',
   stickyScroll: { enabled: false },
+  // The last line's number in full colour on every platform (Linux dims it).
+  renderFinalNewline: 'on',
+  ariaLabel: 'Code editor. Press Escape, then Tab, to move out of the editor.',
   'semanticHighlighting.enabled': false,
 }
 
@@ -120,6 +123,9 @@ export function CodeEditor({
   const releaseFrame = useRef(0)
   const focusedRef = useRef(false)
   const [popover, setPopover] = useState<PopoverPosition | null>(null)
+  /** Show how to leave the editor, for someone who arrived by keyboard. */
+  const [keyboardHint, setKeyboardHint] = useState(false)
+  const lastInputWasKeyboard = useRef(false)
   /** Where the code starts, so the empty-file hint lines up with the caret. */
   const [contentLeft, setContentLeft] = useState<number | null>(null)
 
@@ -216,11 +222,29 @@ export function CodeEditor({
     })
     editor.onDidFocusEditorWidget(() => {
       focusedRef.current = true
+      if (lastInputWasKeyboard.current) setKeyboardHint(true)
       updatePopover()
     })
     editor.onDidBlurEditorWidget(() => {
       focusedRef.current = false
       setPopover(null)
+      setKeyboardHint(false)
+      editor.updateOptions({ tabFocusMode: false })
+    })
+
+    // Tab indents, as in any editor, so it can't also move focus out. Escape
+    // first, then Tab (or Shift+Tab), moves on: Monaco's tab-focus mode is
+    // switched on by Escape and off again by any other key.
+    const MODIFIERS = [
+      monaco.KeyCode.Shift,
+      monaco.KeyCode.Ctrl,
+      monaco.KeyCode.Alt,
+      monaco.KeyCode.Meta,
+      monaco.KeyCode.Tab,
+    ]
+    editor.onKeyDown((e) => {
+      if (e.keyCode === monaco.KeyCode.Escape) editor.updateOptions({ tabFocusMode: true })
+      else if (!MODIFIERS.includes(e.keyCode)) editor.updateOptions({ tabFocusMode: false })
     })
 
     editor.addAction({
@@ -233,6 +257,23 @@ export function CodeEditor({
       run: () => callbacks.current.onExplain(),
     })
   }
+
+  // Whether focus is arriving by keyboard (Tab) or by pointer (a click).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') lastInputWasKeyboard.current = true
+    }
+    const onPointer = () => {
+      lastInputWasKeyboard.current = false
+      setKeyboardHint(false)
+    }
+    window.addEventListener('keydown', onKey, true)
+    window.addEventListener('pointerdown', onPointer, true)
+    return () => {
+      window.removeEventListener('keydown', onKey, true)
+      window.removeEventListener('pointerdown', onPointer, true)
+    }
+  }, [])
 
   // Mouse-up can happen outside the editor; listen globally. Letting go of a
   // mouse selection (a drag, a double-click, a click on a line number) is
@@ -259,6 +300,38 @@ export function CodeEditor({
       cancelAnimationFrame(releaseFrame.current)
     }
   }, [updatePopover])
+
+  // The editor owns the text while someone types; the workspace follows it
+  // through onChange. Passing the text back as a controlled value would let a
+  // render that lags a keystroke behind overwrite what was just typed, so it
+  // is only pushed in when it changed from outside (a file re-opened from
+  // disk). Text the editor sent out is remembered until the workspace echoes
+  // it back, so a late echo is recognised and left alone.
+  const sentOut = useRef<string[]>([])
+  const handleChange = (value: string | undefined) => {
+    const text = value ?? ''
+    sentOut.current.push(text)
+    if (sentOut.current.length > 200) sentOut.current.shift()
+    onChange(text)
+  }
+  useEffect(() => {
+    const editor = editorRef.current
+    const model = editor?.getModel()
+    if (!editor || !model) return
+    if (model.getValue() === file.content) {
+      sentOut.current = []
+      return
+    }
+    const echo = sentOut.current.lastIndexOf(file.content)
+    if (echo !== -1) {
+      // A late echo of our own typing: newer text is already in the editor.
+      sentOut.current.splice(0, echo + 1)
+      return
+    }
+    sentOut.current = []
+    editor.executeEdits('workspace', [{ range: model.getFullModelRange(), text: file.content }])
+    editor.pushUndoStop()
+  }, [file.id, file.content])
 
   // Same for a blank file opened while the editor is already showing.
   const isBlank = file.content === ''
@@ -303,18 +376,24 @@ export function CodeEditor({
         // that happened to have the same path (e.g. two package.json files).
         path={file.id}
         language={file.language}
-        value={file.content}
+        // Seeds a file's model the first time it is shown; see sentOut above.
+        defaultValue={file.content}
         theme={LENS_THEME}
         options={EDITOR_OPTIONS}
         // A switched-to file starts with no selection, matching the reset panel.
         saveViewState={false}
         loading={<EditorLoading />}
         onMount={handleMount}
-        onChange={(value) => onChange(value ?? '')}
+        onChange={handleChange}
       />
       {isBlank && contentLeft !== null && (
         <p className="code-editor__placeholder" style={{ left: contentLeft }} aria-hidden="true">
           Paste or type code here, then highlight any part of it to have it explained.
+        </p>
+      )}
+      {keyboardHint && (
+        <p className="code-editor__keyboard-hint" aria-hidden="true">
+          <kbd className="kbd">Esc</kbd> then <kbd className="kbd">Tab</kbd> to leave the editor
         </p>
       )}
       <SelectionActions

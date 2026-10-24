@@ -16,9 +16,10 @@ const NO_WORKSPACE: SavedWorkspace = { projectName: '', isExample: false, files:
  * as a draft (see `sessionStore`), so a refresh right after typing keeps the
  * last edit even if the browser abandons the asynchronous save.
  *
- * A `null` workspace means there is no session (it was closed, or none was
- * started yet): the saved project is forgotten, so a reload opens the start
- * screen.
+ * A `null` workspace means there is no session. When a session is closed
+ * (it was there and now is not), the saved project is forgotten, so a reload
+ * opens the start screen. Starting up without one writes nothing: if the
+ * saved session is merely slow to read, it must survive.
  */
 export function useSessionPersistence(
   writer: SessionWriter,
@@ -27,6 +28,9 @@ export function useSessionPersistence(
 ) {
   const pending = useRef<SavedWorkspace | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hadSession = useRef(workspace !== null)
+  // What was loaded is already saved; only a changed history needs writing.
+  const loadedHistory = useRef(history)
 
   const hasSession = workspace !== null
   const { projectName, isExample, files, activeFileId } = workspace ?? NO_WORKSPACE
@@ -36,9 +40,11 @@ export function useSessionPersistence(
       if (timer.current) clearTimeout(timer.current)
       timer.current = null
       pending.current = null
-      writer.clearWorkspace()
+      if (hadSession.current) writer.clearWorkspace()
+      hadSession.current = false
       return
     }
+    hadSession.current = true
 
     const flush = () => {
       if (timer.current) clearTimeout(timer.current)
@@ -67,6 +73,6 @@ export function useSessionPersistence(
   }, [writer, hasSession, projectName, isExample, files, activeFileId])
 
   useEffect(() => {
-    writer.saveHistory(history)
+    if (history !== loadedHistory.current) writer.saveHistory(history)
   }, [writer, history])
 }
