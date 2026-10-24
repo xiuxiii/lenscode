@@ -38,6 +38,8 @@
   --accent-tint: rgba(0, 112, 243, 0.08);
   --selection: rgba(0, 112, 243, 0.3);
   --danger: #ff6166;
+  --danger-tint: rgba(255, 97, 102, 0.08); /* the risky-command warning */
+  --danger-border: rgba(255, 97, 102, 0.35);
   --scrim: rgba(10, 10, 10, 0.8);
   --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.4); /* pill and menus only */
 

@@ -156,6 +156,49 @@
   color: var(--text-2);
 }
 
+/* ─────────────────────────── Risky command ───────────────────────────
+ * Shown with the code, above the AI's answer, whatever that answer says.
+ */
+.risk {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--danger-border);
+  background: var(--danger-tint);
+}
+
+.risk__icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--danger);
+}
+
+.risk__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.risk__title {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.risk__list {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-2);
+}
+
 /* ─────────────────────────── Related concepts ─────────────────────────── */
 .related {
   list-style: none;

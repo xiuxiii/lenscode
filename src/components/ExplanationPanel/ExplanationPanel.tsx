@@ -1,8 +1,9 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { getLanguage } from '../../data/languages'
 import type { ExplanationState } from '../../hooks/useExplanation'
 import { useFollowUps } from '../../hooks/useFollowUps'
 import { renderProse } from '../../lib/prose'
+import { findRisks } from '../../lib/riskyCommands'
 import { normalizeSelection } from '../../lib/selection'
 import { EXPLAIN_SHORTCUT } from '../../lib/shortcuts'
 import {
@@ -63,6 +64,31 @@ function Subject({
           <span className="subject__language-name">{lang.label}</span> {lang.description}
         </p>
       )}
+    </div>
+  )
+}
+
+/**
+ * Fixed warnings for commands that can destroy work, shown with the code.
+ * The app decides these, never the AI, so nothing in the file being
+ * explained can talk them away.
+ */
+function RiskWarning({ code }: { code: string }) {
+  const risks = useMemo(() => findRisks(code), [code])
+  if (risks.length === 0) return null
+  return (
+    <div className="risk" role="note" aria-label="Careful before running this">
+      <AlertIcon className="risk__icon" />
+      <div className="risk__body">
+        <p className="risk__title">Careful before you run this</p>
+        <ul className="risk__list">
+          {risks.map((risk) => (
+            <li key={risk.warning}>
+              <code className="inline-code">{risk.match}</code> {risk.warning}
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   )
 }
@@ -220,15 +246,18 @@ export function ExplanationPanel({
   if (status === 'idle' || !request) {
     body =
       hasSelection && selection ? (
-        <Subject
-          code={selection.text}
-          language={language}
-          detail={
-            <p className="subject__detail subject__detail--hint">
-              Press {EXPLAIN_SHORTCUT} or click Explain
-            </p>
-          }
-        />
+        <>
+          <Subject
+            code={selection.text}
+            language={language}
+            detail={
+              <p className="subject__detail subject__detail--hint">
+                Press {EXPLAIN_SHORTCUT} or click Explain
+              </p>
+            }
+          />
+          <RiskWarning code={selection.text} />
+        </>
       ) : (
         <EmptyState />
       )
@@ -242,6 +271,7 @@ export function ExplanationPanel({
     body = (
       <>
         <Subject code={request.selectedCode} language={request.language} detail={detail} />
+        <RiskWarning code={request.selectedCode} />
         {status === 'loading' && <LoadingState />}
         {status === 'error' && (
           <ErrorState
