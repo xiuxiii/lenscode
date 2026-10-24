@@ -1,4 +1,4 @@
-import { LensLogo, PanelLeftIcon, PlusIcon } from '../icons'
+import { CardsIcon, LensLogo, PanelLeftIcon, PlusIcon } from '../icons'
 import './TopBar.css'
 
 interface TopBarProps {
@@ -8,9 +8,22 @@ interface TopBarProps {
   onToggleSidebar: () => void
   /** Go to the start screen. */
   onHome: () => void
+  /** How many flashcards are due now, shown as a count. */
+  flashcardsDue: number
+  /** The Flashcards screen is showing. */
+  flashcardsOpen: boolean
+  onFlashcards: () => void
 }
 
-export function TopBar({ session, sidebarOpen, onToggleSidebar, onHome }: TopBarProps) {
+export function TopBar({
+  session,
+  sidebarOpen,
+  onToggleSidebar,
+  onHome,
+  flashcardsDue,
+  flashcardsOpen,
+  onFlashcards,
+}: TopBarProps) {
   return (
     <header className="top-bar">
       {session && (
@@ -56,6 +69,20 @@ export function TopBar({ session, sidebarOpen, onToggleSidebar, onHome }: TopBar
           </button>
         </>
       )}
+      <button
+        type="button"
+        className={`btn btn--ghost btn--sm top-bar__flashcards${flashcardsOpen ? ' top-bar__flashcards--on' : ''}`}
+        onClick={onFlashcards}
+        title={flashcardsDue > 0 ? `Review your flashcards (${flashcardsDue} due)` : 'Your flashcards'}
+        aria-label={flashcardsDue > 0 ? `Flashcards, ${flashcardsDue} due` : 'Flashcards'}
+        aria-current={flashcardsOpen ? 'page' : undefined}
+      >
+        <CardsIcon />
+        <span className="top-bar__flashcards-label">Flashcards</span>
+        {flashcardsDue > 0 && (
+          <span className="top-bar__count">{flashcardsDue > 99 ? '99+' : flashcardsDue}</span>
+        )}
+      </button>
     </header>
   )
 }

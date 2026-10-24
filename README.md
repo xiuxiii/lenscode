@@ -16,6 +16,7 @@ PASTE CODE → SELECT CODE → EXPLAIN → READ EXPLANATION
 4. Let go of the mouse and it is explained straight away (a drag, a double-click on a word, or a click on a line number all count). Selections made with the keyboard get a small **Explain** pill instead: click it, press `⌘E` / `Ctrl+E`, use the editor context menu, or click **Explain** in the tab bar.
 5. The explanation panel on the right shows what it is, the technical definition, what it does in this code, why it is here, and related concepts to learn next. Risky commands (`rm -rf`, `curl … | sh`, `sudo`, force-pushes, `reset --hard`, `DROP TABLE` and the like) also get a fixed warning from the app itself (`src/lib/riskyCommands.ts`), so nothing written in the file, and nothing the AI says, can talk the risk away.
 6. Click a related concept to explain that next, or type a question into **Ask a follow-up…** under the explanation ("why not just…?", "what does that word mean?"). Answers appear under the explanation and remember the earlier questions in the thread. The sidebar keeps a short history of what you have explained.
+7. To remember something for later, click **Save as flashcard** above the answer, and practise it from **Flashcards** in the top bar (see [Flashcards](#flashcards)).
 
 ## Running it
 
@@ -38,6 +39,7 @@ The tests sit next to the code they cover (`*.test.ts`) and need no API key: the
 - **Opening files:** secrets are never read, dependency/build folders, binaries and oversized files are left out, and the size and count caps.
 - **The API route:** request validation, the prompt sent upstream, and every error the panel can show (bad key, no credit, rate limits, timeouts, malformed or truncated answers). Also checks that the key never appears in an error or a log line.
 - **The browser side:** answer parsing and how `explainCode()` maps failures.
+- **Flashcards:** the review schedule, which cards are due, duplicates, saving and reading (including broken data and blocked or full storage), and the Anki file.
 
 ### Adding your API key (DeepSeek)
 
@@ -80,7 +82,7 @@ server/                 Runs in Node only; never bundled for the browser
 src/
   components/
     AppShell/           Layout grid, state wiring, panel resizer, mobile drawer + bottom sheet
-    TopBar/             Sidebar toggle, logo, project name
+    TopBar/             Sidebar toggle, logo, project name, Flashcards with the due count
     FileSidebar/        "Open…" menu, import summary, folder tree, recent explanations
       FileTree          Collapsible tree built from file paths
     CodeEditor/         Monaco wrapper, selection tracking, pill placement, theme + workers
@@ -88,10 +90,12 @@ src/
     SelectionActions/   The floating "Explain" pill
     ExplanationPanel/   All panel states (empty, selected, loading, loaded, error) + follow-up thread and composer
       ExplanationSection, RelatedConcepts
+    Flashcards/         The Flashcards screen: review, every card, Export for Anki
   hooks/
     useExplanation.ts   Reducer-based state machine (idle → loading → loaded | error) with cancellation
     useWorkspace.ts     The project: name, files (by path), active file, open/add/close
     useSessionPersistence.ts  Autosaves the workspace and history (debounced, flushed on page hide)
+    useFlashcards.ts    Saved flashcards, which are due, save / answer / delete
   services/
     explanationService.ts       explainCode() — the only door between UI and AI
     parseExplanation.ts         Validates answers (shared with the server)
@@ -102,6 +106,7 @@ src/
     detectLanguage.ts       Automatic language detection (offline, runs on every edit)
     importFiles.ts          Reads opened / dropped files and folders, with safety filtering
     sessionStore.ts         Saves / restores the project and history in this browser (IndexedDB)
+    flashcards.ts           Flashcard review schedule, localStorage and the Anki export
   types/
     explanation.ts          Explanation, ExplanationRequest, ExplanationError
     workspace.ts            WorkspaceFile, CodeSelection, LanguageId
@@ -133,6 +138,21 @@ Your project, its files (including edits), the open file and your recent explana
 - **Slow storage never loses data:** if reading the saved session takes longer than 1.5 s, the app starts on the start screen without it and writes nothing until the read finishes. The project then appears under "Pick up where you left off" and Recent is merged back in. If you started something new in the meantime, that new session replaces the old one, as it always does.
 
 Two tabs open at once share the same save, and the last one to save wins.
+
+## Flashcards
+
+Any explanation can be kept as a flashcard to practise later. **Save as flashcard** sits above the answer; once saved it reads **Saved as flashcard**, and clicking it again removes the card. The front of a card is the code and its language; the back is the concept, the plain answer and what the code does in its file. Saving the same code and concept twice keeps one card.
+
+**Flashcards** in the top bar (with a count of the cards due) opens the review, and so does a short line on the start screen once there are cards. Each card shows its code first: try to remember what it does, then **Show answer** (`Space`) and say how it went. Each button shows when the card will come back:
+
+- **Again** (`1`): back in 5 minutes, and from then on the waits grow a little more slowly.
+- **Good** (`2`): 1 day the first time, then the last wait times the card's ease (2.5 to start), so 1, 3, 8, 20 days…
+- **Easy** (`3`): 4 days the first time, then longer than Good, and the waits grow faster from then on.
+
+When nothing is due, the screen says "All caught up" and when the next card is due. Under the review, every card is listed with when it is next due and **Delete**. **Export for Anki** downloads `lenscode-flashcards.txt`, one card per line with the front and back separated by a tab; in Anki choose **File → Import**. Its two header lines tell Anki the fields are tab-separated HTML, so code keeps its line breaks and indentation.
+
+- **Where:** `src/lib/flashcards.ts` keeps the cards in this browser's `localStorage` (key `lenscode:flashcards`, with a schema version). Each card is checked when read, so broken data is skipped rather than breaking the app. If storage is blocked or full, cards still work until the page is closed, and the Flashcards screen says they won't be kept. A change made in another tab shows up straight away.
+- **Scheduling** is a small version of SM-2, the scheme Anki grew from: pure functions in the same file, tested in `flashcards.test.ts`. Waits never go past a year, and the ease never drops below 1.3.
 
 ## Language detection
 

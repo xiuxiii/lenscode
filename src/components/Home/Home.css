@@ -196,6 +196,35 @@
   color: var(--text);
 }
 
+/* Saved flashcards: one quiet line, shown once there are any. */
+.home-flashcards {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.home-flashcards__icon {
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+
+.home-flashcards__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.home-flashcards__title {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: 500;
+}
+
+.home-flashcards__body {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-3);
+}
+
 /* The tutorial: a quiet footnote, not a headline. */
 .home-tutorial {
   display: flex;
@@ -264,7 +293,8 @@
     grid-template-columns: 1fr;
   }
 
-  .home-tutorial {
+  .home-tutorial,
+  .home-flashcards {
     flex-wrap: wrap;
   }
 }
