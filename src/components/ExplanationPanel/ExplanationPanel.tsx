@@ -132,7 +132,8 @@ const ERROR_HINT: Record<ExplanationErrorCode, string> = {
   unknown: 'Try again in a moment.',
   network: 'Check your connection, then try again.',
   timeout: 'The service took too long. Try again, or select a smaller piece.',
-  rate_limited: 'Wait a few seconds before asking for another explanation.',
+  // The message above says how long (a few seconds, or until midnight for the daily limit).
+  rate_limited: 'Too many requests have gone to the AI for now. Try again later.',
   invalid_response: 'The explanation came back malformed. Try again.',
   server_error: 'The explanation service is having trouble. Try again shortly.',
 }
