@@ -97,7 +97,7 @@ async function run(argv: string[], fake: Fake = {}) {
       return fake.browserOpens ?? true
     },
     capture: async (command, args) => {
-      expect(command).toBe('osascript')
+      expect(command).toBe('/usr/bin/osascript')
       dialogs.push(args[1])
       return fake.dialogAnswer === undefined ? 'button returned:OK\n' : fake.dialogAnswer
     },
@@ -278,7 +278,7 @@ describe('lens --open', () => {
 describe('browserCommand', () => {
   it('uses open on macOS, start on Windows and xdg-open elsewhere', () => {
     const url = 'http://localhost:5173/#explain=ls'
-    expect(browserCommand('darwin', url)).toEqual(['open', [url]])
+    expect(browserCommand('darwin', url)).toEqual(['/usr/bin/open', [url]])
     expect(browserCommand('win32', url)).toEqual(['cmd', ['/c', 'start', '""', url]])
     expect(browserCommand('linux', url)).toEqual(['xdg-open', [url]])
   })
@@ -306,7 +306,7 @@ describe('lens --popup', () => {
       platform: 'darwin',
       dialogAnswer: 'button returned:Open in LensCode\n',
     })
-    expect(launched).toEqual([['open', 'http://localhost:5173/#explain=ls']])
+    expect(launched).toEqual([['/usr/bin/open', 'http://localhost:5173/#explain=ls']])
   })
 
   it('does not open anything when OK is clicked', async () => {

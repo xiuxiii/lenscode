@@ -70,9 +70,12 @@ export async function explainText(text: string, config: LlmConfig): Promise<Expl
   return body as Explanation
 }
 
-/** How each system opens a link in the default browser. */
+/**
+ * How each system opens a link in the default browser. macOS tools are named
+ * by their full paths, since Shortcuts runs lens with a minimal PATH.
+ */
 export function browserCommand(platform: NodeJS.Platform, url: string): [string, string[]] {
-  if (platform === 'darwin') return ['open', [url]]
+  if (platform === 'darwin') return ['/usr/bin/open', [url]]
   // `start` takes its first quoted argument as a window title, hence the "".
   if (platform === 'win32') return ['cmd', ['/c', 'start', '""', url]]
   return ['xdg-open', [url]]
@@ -158,7 +161,7 @@ async function explain(
   // otherwise warnings on stdout (stderr for --json) and errors on stderr.
   const showDialog = async (body: string): Promise<void> => {
     const message = formatRisks(risks, style) + body
-    const answer = await ctx.capture('osascript', [
+    const answer = await ctx.capture('/usr/bin/osascript', [
       '-e',
       dialogScript(message, { caution: risks.length > 0 }),
     ])

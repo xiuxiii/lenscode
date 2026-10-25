@@ -128,6 +128,8 @@ export function CodeEditor({
   const lastInputWasKeyboard = useRef(false)
   /** Where the code starts, so the empty-file hint lines up with the caret. */
   const [contentLeft, setContentLeft] = useState<number | null>(null)
+  /** Monaco loads after the first render; an explanation can start before it. */
+  const [mounted, setMounted] = useState(false)
 
   // Keep latest callbacks reachable from listeners registered once on mount.
   const callbacks = useRef({ onSelectionChange, onExplain, onSelectEnd })
@@ -199,6 +201,7 @@ export function CodeEditor({
   const handleMount: OnMount = (editor) => {
     editorRef.current = editor
     decorationsRef.current = editor.createDecorationsCollection()
+    setMounted(true)
 
     editor.onDidChangeCursorSelection(() => {
       callbacks.current.onSelectionChange(readSelection(editor))
@@ -361,7 +364,7 @@ export function CodeEditor({
         },
       },
     ])
-  }, [highlightRange, file.id])
+  }, [highlightRange, file.id, mounted])
 
   const handleExplainClick = () => {
     callbacks.current.onExplain()
