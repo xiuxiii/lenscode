@@ -8,7 +8,7 @@
  *
  * - dependency / build / VCS folders (`node_modules`, `.git`, `dist`, …)
  * - binary files (images, fonts, archives, executables)
- * - secret files (`.env`, `.env.local`, private keys, …) — never read at all
+ * - secret files (`.env`, `.env.local`, private keys, credential files, …) — never read at all
  * - oversized files, and anything past the overall count / size caps
  */
 
@@ -61,10 +61,16 @@ const IGNORED_FOLDERS = new Set([
 /** OS clutter, skipped without mention. */
 const JUNK_FILES = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini'])
 
+/** Private keys, keystores and credential stores (AWS, git, Postgres, Apache, Docker, Kubernetes). */
 const SECRET_NAME =
-  /^(\.env(\..+)?|\.npmrc|\.pypirc|\.netrc|id_(rsa|dsa|ecdsa|ed25519)|.*\.(pem|key|p12|pfx|jks|keystore))$/i
-/** Templates are safe to show and useful to explain. */
-const SECRET_TEMPLATE = /^\.env\.(example|sample|template|dist)$/i
+  /^(id_(rsa|dsa|ecdsa|ed25519)|.*\.(pem|key|p12|pfx|jks|keystore|ppk|kdbx)|\.npmrc|\.pypirc|\.netrc|credentials|\.git-credentials|\.pgpass|\.htpasswd|\.dockercfg|kubeconfig(\.ya?ml)?)$/i
+/** Config files that hold secrets: .env files, Terraform variables, cloud credentials, service accounts. */
+const SECRET_CONFIG =
+  /^(\.env(\..+)?|.*\.tfvars(\.json)?|secrets\..+|.*\.secrets?|(.+[-_])?credentials\.json|.*service[-_]?account.*\.json)$/i
+/** Templates of those are safe to show and useful to explain: .env.example, secrets.sample.yaml. */
+const SECRET_TEMPLATE = /\.(example|sample|template)(\.|$)|^\.env\.dist$/i
+/** Docker and Kubernetes logins, matched on the path: a plain config.json is fine. */
+const SECRET_PATH = /(^|\/)\.(docker\/config\.json|kube\/config)$/i
 
 const BINARY_EXTENSIONS = new Set([
   'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'icns', 'tif', 'tiff', 'avif', 'heic',
@@ -78,8 +84,14 @@ function baseName(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1)
 }
 
-export function isSecretFile(name: string): boolean {
-  return SECRET_NAME.test(name) && !SECRET_TEMPLATE.test(name)
+/** Whether the file at `path` (or a bare file name) holds keys or passwords. */
+export function isSecretFile(path: string): boolean {
+  const name = baseName(path)
+  return (
+    SECRET_NAME.test(name) ||
+    (SECRET_CONFIG.test(name) && !SECRET_TEMPLATE.test(name)) ||
+    SECRET_PATH.test(path)
+  )
 }
 
 function isBinaryName(name: string): boolean {
@@ -215,7 +227,8 @@ export async function readPickedFiles(
       continue
     }
     if (JUNK_FILES.has(name)) continue
-    if (isSecretFile(name)) {
+    // The full path, so `.docker/config.json` is caught even when `.docker` was the folder opened.
+    if (isSecretFile(item.path)) {
       skipped.secrets.push(path)
       continue
     }

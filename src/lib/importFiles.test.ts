@@ -31,16 +31,72 @@ describe('isSecretFile', () => {
     'cert.p12',
     'release.keystore',
     '.ENV',
+    // Credential stores
+    'credentials',
+    '.aws/credentials',
+    '.git-credentials',
+    '.pgpass',
+    '.htpasswd',
+    '.dockercfg',
+    'kubeconfig',
+    'kubeconfig.yaml',
+    'putty.ppk',
+    'passwords.kdbx',
+    // Config files that hold secrets
+    'terraform.tfvars',
+    'prod.auto.tfvars',
+    'vars.tfvars.json',
+    'secrets.yaml',
+    'secrets.json',
+    'app.secret',
+    'prod.secrets',
+    'credentials.json',
+    'gcp-credentials.json',
+    'client_credentials.json',
+    'service-account.json',
+    'service-account-prod.json',
+    'serviceAccountKey.json',
+    'firebase-serviceaccount.json',
+    // Logins found by their folder
+    '.docker/config.json',
+    'home/me/.docker/config.json',
+    '.kube/config',
   ])('treats %s as secret', (name) => {
     expect(isSecretFile(name)).toBe(true)
   })
 
-  it.each(['.env.example', '.env.sample', '.env.template', '.env.dist', 'env.js', 'keys.ts', 'id_rsa.pub', 'README.md'])(
-    'allows %s',
-    (name) => {
-      expect(isSecretFile(name)).toBe(false)
-    },
-  )
+  it.each([
+    '.env.example',
+    '.env.sample',
+    '.env.template',
+    '.env.dist',
+    'env.js',
+    'keys.ts',
+    'id_rsa.pub',
+    'README.md',
+    // Templates of credential files, and look-alikes that hold no secrets
+    'terraform.tfvars.example',
+    'example.tfvars.sample',
+    'secrets.example.yaml',
+    'secrets.yaml.sample',
+    'service-account.template.json',
+    'credentials.example.json',
+    'credentials.ts',
+    'config.json',
+    'src/config.json',
+    'docker/config.json',
+    '.docker/daemon.json',
+    'kube/config',
+    'main.tf',
+    'variables.tf',
+  ])('allows %s', (name) => {
+    expect(isSecretFile(name)).toBe(false)
+  })
+
+  it('never allows a private key, even one named like a template', () => {
+    expect(isSecretFile('server.example.pem')).toBe(true)
+    expect(isSecretFile('id_rsa')).toBe(true)
+  })
 })
 
 describe('readPickedFiles', () => {
@@ -104,6 +160,38 @@ describe('readPickedFiles', () => {
     expect(result.files.map((f) => f.path)).toEqual(['.env.example', 'a.js'])
     expect(text).not.toHaveBeenCalled()
     expect(JSON.stringify(result)).not.toContain('hunter2')
+  })
+
+  it('never reads credential files, and opens their templates', async () => {
+    const tfvars = picked('infra/terraform.tfvars', 'db_password = "hunter2"')
+    const text = vi.spyOn(tfvars.file, 'text')
+    const result = await readPickedFiles(
+      [
+        tfvars,
+        picked('infra/terraform.tfvars.example', 'db_password = ""'),
+        picked('infra/main.tf'),
+        picked('.docker/config.json', '{"auths": {}}'),
+        picked('app/config.json', '{}'),
+      ],
+      asFiles,
+    )
+    expect(result.skipped.secrets).toEqual(['.docker/config.json', 'infra/terraform.tfvars'])
+    expect(result.files.map((f) => f.path)).toEqual([
+      'app/config.json',
+      'infra/main.tf',
+      'infra/terraform.tfvars.example',
+    ])
+    expect(text).not.toHaveBeenCalled()
+  })
+
+  it('skips Docker’s config.json when the .docker folder itself is opened', async () => {
+    const result = await readPickedFiles(
+      [picked('.docker/config.json', '{"auths": {}}'), picked('.docker/daemon.json', '{}')],
+      asFolder,
+    )
+    expect(result.rootName).toBe('.docker')
+    expect(result.skipped.secrets).toEqual(['config.json'])
+    expect(result.files.map((f) => f.path)).toEqual(['daemon.json'])
   })
 
   it('skips binary files by extension', async () => {
