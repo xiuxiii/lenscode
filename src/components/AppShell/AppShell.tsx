@@ -9,6 +9,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
+import { useDeepLink } from '../../hooks/useDeepLink'
 import { useExplanation } from '../../hooks/useExplanation'
 import { useSessionPersistence } from '../../hooks/useSessionPersistence'
 import { useWorkspace } from '../../hooks/useWorkspace'
@@ -240,6 +241,9 @@ export function AppShell({ session }: { session: SavedSession }) {
     setImportNotice(null)
     enterSession()
   }, [workspace, enterSession])
+
+  // Opening the app at #explain=<text> (`lens --open`) adds and explains it.
+  useDeepLink({ late: session.late, hasSession, addSnippet: workspace.addSnippet, enterSession, explain })
 
   const goHome = useCallback(() => {
     setSelection(null)

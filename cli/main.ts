@@ -91,9 +91,12 @@ async function isRunning(url: string): Promise<boolean> {
 
 const NOTHING_TO_EXPLAIN =
   "Nothing to explain. Give lens some text, like lens 'git status', or pipe it in: pbpaste | lens"
+const NOTHING_SELECTED = 'Nothing to explain. Highlight some text first.'
+
+const count = (n: number) => n.toLocaleString('en-US')
 
 function tooLong(length: number): string {
-  return `That is ${length.toLocaleString('en-US')} characters, and LensCode explains at most ${MAX_EXPLAIN_CHARS.toLocaleString('en-US')} at a time. Pick a smaller piece.`
+  return `That is ${count(length)} characters, and LensCode explains at most ${count(MAX_EXPLAIN_CHARS)} at a time. Pick a smaller piece.`
 }
 
 function noKey(folder: string): string {
@@ -172,7 +175,7 @@ async function explain(
     return 1
   }
 
-  if (!text.trim()) return fail(popup ? 'Nothing to explain. Highlight some text first.' : NOTHING_TO_EXPLAIN)
+  if (!text.trim()) return fail(popup ? NOTHING_SELECTED : NOTHING_TO_EXPLAIN)
   if (!popup) showRisks()
   if (text.length > MAX_EXPLAIN_CHARS) return fail(tooLong(text.length))
 
@@ -222,7 +225,8 @@ async function openInLensCode(
   )
   if (!running) {
     ctx.stdout.write(
-      `LensCode does not seem to be running at ${base}. Start it, then reload the page:\n  cd ${shellQuote(folder)} && npm run dev\n`,
+      `LensCode does not seem to be running at ${base}. Start it, then reload the page:\n` +
+        `  cd ${shellQuote(folder)} && npm run dev\n`,
     )
   }
   return opened

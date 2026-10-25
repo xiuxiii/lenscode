@@ -177,6 +177,28 @@ export function useWorkspace(initial: SavedWorkspace | null) {
     [files, toWorkspaceFile],
   )
 
+  /**
+   * Add `text` as a new file, "snippet" (or "snippet-2", … when taken), and
+   * open it. With `newSession`, it starts a new session holding only that
+   * file instead. Returns the file, so it can be explained straight away.
+   */
+  const addSnippet = useCallback(
+    (text: string, newSession: boolean): WorkspaceFile => {
+      const taken = new Set(newSession ? [] : files.map((f) => f.path))
+      let name = 'snippet'
+      for (let n = 2; taken.has(name); n++) name = `snippet-${n}`
+      const file = toWorkspaceFile({ path: name, content: text })
+      if (newSession) {
+        load({ projectName: UNTITLED_SESSION, isExample: false, files: [file], activeFileId: file.id })
+      } else {
+        setFiles((prev) => [...prev, file])
+        setActiveFileId(file.id)
+      }
+      return file
+    },
+    [files, load, toWorkspaceFile],
+  )
+
   /** Start a new session with one empty file. */
   const startBlank = useCallback(() => load(blankWorkspace()), [load])
 
@@ -195,6 +217,7 @@ export function useWorkspace(initial: SavedWorkspace | null) {
     openFolder,
     openFiles,
     addFiles,
+    addSnippet,
     startBlank,
     openTutorial,
     /** Show a saved session (one that finished loading late). */
