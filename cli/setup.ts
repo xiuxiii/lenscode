@@ -26,9 +26,9 @@ export function setupMacText(paths: LensPaths): string {
   const command = lensCommand(paths)
   return `Explain highlighted text with a keyboard shortcut on your Mac
 
-This uses the Shortcuts app and works in Terminal and most Mac apps. Highlight
-some text, press the shortcut, and the explanation pops up. The text is only
-explained, never run.
+This uses the Shortcuts app and works in Terminal and many other Mac apps.
+Highlight some text, press the shortcut, and the explanation pops up. The text
+is only explained, never run.
 
 1. Open the Shortcuts app and make a new shortcut (File > New Shortcut).
    Name it "Explain with LensCode".
@@ -36,7 +36,8 @@ explained, never run.
 2. Click the Shortcut Details button (the "i" at the top right), then tick
    "Use as Quick Action" and "Services Menu".
 
-3. At the top of the shortcut, set Receive to "Text" from "Quick Actions".
+3. At the top of the shortcut, make it receive only "Text" input from
+   "Quick Actions".
 
 4. Add a "Run Shell Script" action. Set Shell to "zsh", Input to "Shortcut
    Input" and Pass Input to "to stdin", then paste this as the script:

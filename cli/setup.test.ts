@@ -43,7 +43,7 @@ describe('setupMacText', () => {
   it('covers the Quick Action, the Services menu, scripts and the keyboard shortcut', () => {
     expect(text).toContain('Use as Quick Action')
     expect(text).toContain('Services Menu')
-    expect(text).toContain('Receive to "Text" from "Quick Actions"')
+    expect(text).toContain('receive only "Text" input from\n   "Quick Actions"')
     expect(text).toContain('Allow Running Scripts')
     expect(text).toContain('System Settings > Keyboard > Keyboard\n   Shortcuts… > Services')
   })
