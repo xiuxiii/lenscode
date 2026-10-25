@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Explanation } from '../../src/types/explanation.ts'
 import type { LlmConfig } from './config.ts'
-import { createExplainHandler } from './handler.ts'
+import { createExplainHandler, createFollowUpHandler } from './handler.ts'
 
 const CONFIG: LlmConfig = {
   apiKey: 'sk-test',
@@ -108,7 +109,11 @@ describe('POST /api/explain: request handling', () => {
 
 describe('POST /api/explain: talking to the model', () => {
   const log = vi.fn()
-  const handle = createExplainHandler({ config: CONFIG, log })
+  // A fresh handler each time, so no answer comes from an earlier test's cache.
+  let handle: ReturnType<typeof createExplainHandler>
+  beforeEach(() => {
+    handle = createExplainHandler({ config: CONFIG, log })
+  })
 
   afterEach(() => log.mockReset())
 
@@ -238,5 +243,189 @@ describe('POST /api/explain: talking to the model', () => {
     ))
     const res = await handleFast(post(VALID_REQUEST))
     expect(await errorOf(res)).toMatchObject({ status: 504, code: 'timeout' })
+  })
+})
+
+const FOLLOW_UP = {
+  request: VALID_REQUEST,
+  explanation: {
+    concept: 'Await keyword',
+    simpleExplanation: 'It waits.',
+    definition: 'Pauses until a promise settles.',
+    contextualExplanation: 'Waits for fetch.',
+    whyItExists: 'So r is the response.',
+  },
+  previous: [],
+  question: 'Why not use .then()?',
+}
+
+/** A provider that answers every call, valid both as an explanation and as a follow-up answer. */
+function answeringProvider() {
+  return mockProvider(() => completion(JSON.stringify({ ...ANSWER, answer: 'Because.' })))
+}
+
+/** The valid request, about different code. */
+const requestFor = (selectedCode: string) => ({ ...VALID_REQUEST, selectedCode })
+
+const explanationOf = async (response: Response) => (await response.json()) as Explanation
+
+describe('POST /api/explain: repeat explanations', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('answers a repeat from memory, with a fresh id', async () => {
+    const handle = createExplainHandler({ config: CONFIG })
+    const fetchMock = answeringProvider()
+    const first = await explanationOf(await handle(post(VALID_REQUEST)))
+    const res = await handle(post(VALID_REQUEST))
+    expect(res.status).toBe(200)
+    const second = await explanationOf(res)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(second).toEqual({ ...first, id: second.id })
+    expect(second.id).not.toBe(first.id)
+  })
+
+  it('asks the model again when the code around the selection changes', async () => {
+    const handle = createExplainHandler({ config: CONFIG })
+    const fetchMock = answeringProvider()
+    const { surroundingContext } = VALID_REQUEST
+    await handle(post(VALID_REQUEST))
+    await handle(post({ ...VALID_REQUEST, surroundingContext: { ...surroundingContext, fullSource: 'const r = await fetch(api)' } }))
+    await handle(post({ ...VALID_REQUEST, fileName: 'b.js' }))
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not keep failures', async () => {
+    const handle = createExplainHandler({ config: CONFIG })
+    const replies = [
+      new Response('{}', { status: 500 }),
+      completion('I cannot help with that.'),
+      completion(JSON.stringify(ANSWER)),
+    ]
+    let call = 0
+    const fetchMock = mockProvider(() => replies[call++])
+    expect((await handle(post(VALID_REQUEST))).status).toBe(503)
+    expect((await handle(post(VALID_REQUEST))).status).toBe(502)
+    expect((await handle(post(VALID_REQUEST))).status).toBe(200)
+    expect((await handle(post(VALID_REQUEST))).status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('shares an answer across hidden secrets, but echoes each request’s own code', async () => {
+    const handle = createExplainHandler({ config: CONFIG })
+    const fetchMock = answeringProvider()
+    const withKey = (key: string) => ({
+      ...VALID_REQUEST,
+      selectedCode: `const key = "${key}"`,
+      surroundingContext: {
+        fullSource: `const key = "${key}"`,
+        range: { startLine: 1, startColumn: 1, endLine: 1, endColumn: 42 },
+      },
+    })
+    await handle(post(withKey('sk-proj-aaa111bbb222ccc333ddd')))
+    const second = await explanationOf(await handle(post(withKey('sk-proj-eee444fff555ggg666hhh'))))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(second.selectedCode).toBe('const key = "sk-proj-eee444fff555ggg666hhh"')
+  })
+
+  it('forgets an answer after an hour', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const handle = createExplainHandler({ config: CONFIG })
+    const fetchMock = answeringProvider()
+    await handle(post(VALID_REQUEST))
+    vi.setSystemTime(Date.now() + 59 * 60_000)
+    await handle(post(VALID_REQUEST))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    vi.setSystemTime(Date.now() + 2 * 60_000)
+    await handle(post(VALID_REQUEST))
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the 200 most recently used answers', async () => {
+    const handle = createExplainHandler({ config: CONFIG })
+    const fetchMock = answeringProvider()
+    for (let i = 0; i <= 200; i++) await handle(post(requestFor(`step${i}()`)))
+    expect(fetchMock).toHaveBeenCalledTimes(201)
+    await handle(post(requestFor('step200()')))
+    expect(fetchMock).toHaveBeenCalledTimes(201)
+    await handle(post(requestFor('step0()')))
+    expect(fetchMock).toHaveBeenCalledTimes(202)
+  })
+
+  it('does not cache follow-up answers', async () => {
+    const handle = createFollowUpHandler({ config: CONFIG })
+    const fetchMock = answeringProvider()
+    for (let i = 0; i < 2; i++) {
+      expect(await (await handle(post(FOLLOW_UP))).json()).toEqual({ answer: 'Because.' })
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('LLM_DAILY_LIMIT', () => {
+  const limited = (dailyLimit: number): LlmConfig => ({ ...CONFIG, dailyLimit })
+
+  afterEach(() => vi.useRealTimers())
+
+  it('refuses AI calls over the limit with a 429 that says why', async () => {
+    const handle = createExplainHandler({ config: limited(2) })
+    const fetchMock = answeringProvider()
+    expect((await handle(post(requestFor('a')))).status).toBe(200)
+    expect((await handle(post(requestFor('b')))).status).toBe(200)
+    expect(await errorOf(await handle(post(requestFor('c'))))).toEqual({
+      status: 429,
+      code: 'rate_limited',
+      message:
+        "LensCode's daily limit of 2 AI requests is used up (LLM_DAILY_LIMIT). It resets at midnight.",
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('answers repeats from the cache without counting them', async () => {
+    const handle = createExplainHandler({ config: limited(1) })
+    const fetchMock = answeringProvider()
+    for (let i = 0; i < 3; i++) expect((await handle(post(VALID_REQUEST))).status).toBe(200)
+    expect((await errorOf(await handle(post(requestFor('other'))))).message).toBe(
+      "LensCode's daily limit of 1 AI request is used up (LLM_DAILY_LIMIT). It resets at midnight.",
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('counts follow-ups, in one count with explanations from the same config', async () => {
+    const config = limited(2)
+    const explain = createExplainHandler({ config })
+    const followUp = createFollowUpHandler({ config })
+    const fetchMock = answeringProvider()
+    expect((await explain(post(VALID_REQUEST))).status).toBe(200)
+    expect((await followUp(post(FOLLOW_UP))).status).toBe(200)
+    expect(await errorOf(await followUp(post(FOLLOW_UP)))).toMatchObject({ status: 429, code: 'rate_limited' })
+    expect((await explain(post(requestFor('other')))).status).toBe(429)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not count requests turned away before reaching the AI', async () => {
+    const handle = createExplainHandler({ config: limited(1) })
+    answeringProvider()
+    expect((await handle(post({ ...VALID_REQUEST, language: 'cobol' }))).status).toBe(400)
+    expect((await handle(post(VALID_REQUEST))).status).toBe(200)
+  })
+
+  it('starts again at midnight', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 24, 23, 58))
+    const handle = createExplainHandler({ config: limited(1) })
+    answeringProvider()
+    expect((await handle(post(requestFor('a')))).status).toBe(200)
+    expect((await handle(post(requestFor('b')))).status).toBe(429)
+    vi.setSystemTime(new Date(2026, 9, 25, 0, 1))
+    expect((await handle(post(requestFor('b')))).status).toBe(200)
+  })
+
+  it('has no limit when it is 0 or unset', async () => {
+    const fetchMock = answeringProvider()
+    for (const config of [limited(0), CONFIG]) {
+      const handle = createExplainHandler({ config })
+      for (const code of ['a', 'b', 'c']) expect((await handle(post(requestFor(code)))).status).toBe(200)
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(6)
   })
 })
