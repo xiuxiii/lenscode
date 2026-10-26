@@ -150,3 +150,37 @@ export function CloseIcon({ size, ...props }: IconProps) {
     </svg>
   )
 }
+
+export function ArrowLeftIcon({ size, ...props }: IconProps) {
+  return (
+    <svg {...base(size, props)}>
+      <path d="M13 8H3M7 4L3 8l4 4" />
+    </svg>
+  )
+}
+
+/** Two stacked cards: flashcards. */
+export function CardsIcon({ size, ...props }: IconProps) {
+  return (
+    <svg {...base(size, props)}>
+      <rect x="2" y="5" width="10" height="8" rx="1.5" />
+      <path d="M4.5 3h8A1.5 1.5 0 0 1 14 4.5v6" />
+    </svg>
+  )
+}
+
+export function CheckIcon({ size, ...props }: IconProps) {
+  return (
+    <svg {...base(size, props)}>
+      <path d="M3.5 8.5l3 3 6-7" />
+    </svg>
+  )
+}
+
+export function DownloadIcon({ size, ...props }: IconProps) {
+  return (
+    <svg {...base(size, props)}>
+      <path d="M8 2.5v8M4.5 7L8 10.5 11.5 7M3 13.5h10" />
+    </svg>
+  )
+}

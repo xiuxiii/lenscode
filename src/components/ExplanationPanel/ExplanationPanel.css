@@ -132,6 +132,23 @@
 }
 
 /* ─────────────────────────────── Answer ─────────────────────────────── */
+/* Above the lead: keep this explanation as a flashcard. */
+.panel-save {
+  margin-bottom: 16px;
+}
+
+.panel-save svg {
+  color: var(--text-2);
+}
+
+.panel-save--saved .btn {
+  background: var(--bg-active);
+}
+
+.panel-save--saved svg {
+  color: var(--text);
+}
+
 .panel-lead {
   font-size: var(--text-lg);
   line-height: var(--leading-lg);

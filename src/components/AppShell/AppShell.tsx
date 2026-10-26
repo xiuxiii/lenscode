@@ -10,6 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { useExplanation } from '../../hooks/useExplanation'
+import { useFlashcards } from '../../hooks/useFlashcards'
 import { useSessionPersistence } from '../../hooks/useSessionPersistence'
 import { useWorkspace } from '../../hooks/useWorkspace'
 import { pickedFromDrop, readPickedFiles, type PickedFile } from '../../lib/importFiles'
@@ -22,6 +23,7 @@ import { CodeEditor } from '../CodeEditor/CodeEditor'
 import { EditorToolbar } from '../CodeEditor/EditorToolbar'
 import { ExplanationPanel } from '../ExplanationPanel/ExplanationPanel'
 import { FileSidebar, type ImportNotice } from '../FileSidebar/FileSidebar'
+import { Flashcards } from '../Flashcards/Flashcards'
 import { Home } from '../Home/Home'
 import { SparkleIcon } from '../icons'
 import { TopBar } from '../TopBar/TopBar'
@@ -59,7 +61,7 @@ function useIsMobile(): boolean {
   return isMobile
 }
 
-type View = 'home' | 'workspace'
+type View = 'home' | 'workspace' | 'flashcards'
 
 export function AppShell({ session }: { session: SavedSession }) {
   const workspace = useWorkspace(session.workspace)
@@ -80,6 +82,7 @@ export function AppShell({ session }: { session: SavedSession }) {
     clearHistory,
     mergeHistory,
   } = useExplanation(session.history)
+  const flashcards = useFlashcards()
 
   // Remember the project and history in this browser across reloads.
   const [writer] = useState(() => createSessionWriter(session))
@@ -254,12 +257,25 @@ export function AppShell({ session }: { session: SavedSession }) {
     goHome()
   }, [goHome])
 
+  // ─────────────────────────── Flashcards ───────────────────────────
+  /** The screen the Flashcards screen goes back to. */
+  const [flashcardsFrom, setFlashcardsFrom] = useState<'home' | 'workspace'>('home')
+
+  const openFlashcards = useCallback(() => {
+    if (view === 'flashcards') return
+    setFlashcardsFrom(view)
+    // The editor starts afresh on the way back, so nothing is selected; the
+    // explanation stays.
+    setSelection(null)
+    setView('flashcards')
+  }, [view])
+
   const importPicked = useCallback(
     async (picked: PickedFile[], mode: 'folder' | 'files', ignoredFolders?: string[]) => {
       if (picked.length === 0 && !ignoredFolders?.length) return
-      // From the start screen everything begins a new session; in the
-      // workspace, files are added to the open one.
-      const fresh = view === 'home'
+      // From the start screen (or Flashcards) everything begins a new
+      // session; in the workspace, files are added to the open one.
+      const fresh = view !== 'workspace'
       setImporting(true)
       try {
         const result = await readPickedFiles(picked, {
@@ -422,9 +438,27 @@ export function AppShell({ session }: { session: SavedSession }) {
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         onHome={goHome}
+        flashcardsDue={flashcards.due.length}
+        flashcardsOpen={view === 'flashcards'}
+        onFlashcards={openFlashcards}
       />
 
-      {view === 'home' ? (
+      {view === 'flashcards' ? (
+        <Flashcards
+          cards={flashcards.cards}
+          due={flashcards.due}
+          now={flashcards.now}
+          saveFailed={flashcards.saveFailed}
+          backLabel={
+            flashcardsFrom === 'workspace'
+              ? `Back to ${workspace.projectName}`
+              : 'Back to the start screen'
+          }
+          onBack={() => setView(flashcardsFrom)}
+          onRate={flashcards.rate}
+          onDelete={flashcards.remove}
+        />
+      ) : view === 'home' ? (
         <Home
           resumable={
             hasSession
@@ -443,6 +477,8 @@ export function AppShell({ session }: { session: SavedSession }) {
           onDismissNotice={() => setImportNotice(null)}
           onResume={() => setView('workspace')}
           onOpenTutorial={openTutorial}
+          flashcards={{ total: flashcards.cards.length, due: flashcards.due.length }}
+          onOpenFlashcards={openFlashcards}
         />
       ) : (
         <div className="app-shell__body" ref={bodyRef}>
@@ -518,6 +554,8 @@ export function AppShell({ session }: { session: SavedSession }) {
             onExplainSelection={explainSelection}
             onExplainConcept={explainConcept}
             onRetry={retry}
+            isFlashcard={flashcards.isSaved}
+            onToggleFlashcard={flashcards.toggle}
             sheetHandle={
               isMobile ? (
                 <div
@@ -543,10 +581,10 @@ export function AppShell({ session }: { session: SavedSession }) {
         <div className="drop-overlay" aria-hidden="true">
           <div className="drop-overlay__card">
             <p className="drop-overlay__title">
-              {view === 'home' ? 'Drop to start a session' : 'Drop to open'}
+              {view !== 'workspace' ? 'Drop to start a session' : 'Drop to open'}
             </p>
             <p className="drop-overlay__hint">
-              {view === 'home'
+              {view !== 'workspace'
                 ? 'A folder opens as a project. Nothing is uploaded.'
                 : 'A folder opens as a new session; files are added to this one. Nothing is uploaded.'}
             </p>

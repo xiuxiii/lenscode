@@ -72,6 +72,35 @@
   color: var(--text-2);
 }
 
+/* Always at the right end, after New session when there is one. */
+.top-bar__flashcards {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.top-bar__new + .top-bar__flashcards {
+  margin-left: 0;
+}
+
+.top-bar__flashcards--on {
+  background: var(--bg-active);
+  color: var(--text);
+}
+
+/* Cards due now: a small light pill. */
+.top-bar__count {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-md);
+  background: var(--text);
+  color: var(--bg);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: 500;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 @media (max-width: 480px) {
   .top-bar__new {
     width: var(--h-row);
@@ -79,6 +108,17 @@
   }
 
   .top-bar__new-label {
+    display: none;
+  }
+
+  /* In a session there is little room: just the icon and the count. */
+  .top-bar__new + .top-bar__flashcards {
+    gap: 4px;
+    min-width: var(--h-row);
+    padding: 0 6px;
+  }
+
+  .top-bar__new + .top-bar__flashcards .top-bar__flashcards-label {
     display: none;
   }
 }

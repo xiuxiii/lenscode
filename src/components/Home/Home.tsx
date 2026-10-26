@@ -3,6 +3,7 @@ import type { PickedFile } from '../../lib/importFiles'
 import { ImportSummary, type ImportNotice } from '../FileSidebar/FileSidebar'
 import {
   ArrowRightIcon,
+  CardsIcon,
   FileIcon,
   FolderIcon,
   FolderOpenIcon,
@@ -28,6 +29,9 @@ interface HomeProps {
   onDismissNotice: () => void
   onResume: () => void
   onOpenTutorial: () => void
+  /** Saved flashcards and how many are due now; the line shows once there are any. */
+  flashcards: { total: number; due: number }
+  onOpenFlashcards: () => void
 }
 
 /** The start screen: begin a session, pick up the last one, or take the tutorial. */
@@ -41,6 +45,8 @@ export function Home({
   onDismissNotice,
   onResume,
   onOpenTutorial,
+  flashcards,
+  onOpenFlashcards,
 }: HomeProps) {
   const { pickFolder, pickFiles, inputs } = useFilePickers(onOpenFolder, onOpenFiles)
   const tutorialOpen = resumable?.isTutorial ?? false
@@ -111,6 +117,27 @@ export function Home({
                 Continue
                 <ArrowRightIcon size={14} />
               </span>
+            </button>
+          </section>
+        )}
+
+        {flashcards.total > 0 && (
+          <section className="home__section home-flashcards" aria-labelledby="home-flashcards">
+            <CardsIcon className="home-flashcards__icon" />
+            <div className="home-flashcards__text">
+              <h2 className="home-flashcards__title" id="home-flashcards">
+                Flashcards
+              </h2>
+              <p className="home-flashcards__body">
+                {flashcards.due > 0
+                  ? 'Practise the explanations you saved.'
+                  : 'All caught up. Nothing to review right now.'}
+              </p>
+            </div>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={onOpenFlashcards}>
+              {flashcards.due > 0
+                ? `Review ${flashcards.due} ${flashcards.due === 1 ? 'card' : 'cards'}`
+                : 'See cards'}
             </button>
           </section>
         )}

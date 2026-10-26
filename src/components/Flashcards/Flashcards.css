@@ -1,0 +1,311 @@
+/* The Flashcards screen: one centred column like the start screen. The
+   review card comes first; every card is listed under it. */
+.flashcards {
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+.flashcards__inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 24px 64px;
+  animation: lens-fade 160ms ease-out;
+}
+
+/* Text lines up with the title below. */
+.flashcards__back {
+  align-self: flex-start;
+  max-width: calc(100% + 8px);
+  margin-left: -8px;
+}
+
+.flashcards__back-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.flashcards__hero {
+  margin: 24px 0;
+}
+
+.flashcards__title {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.flashcards__lead {
+  margin-top: 8px;
+  color: var(--text-2);
+  text-wrap: pretty;
+}
+
+.flashcards__warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--danger-border);
+  background: var(--danger-tint);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.flashcards__warning-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--danger);
+}
+
+/* ─────────────────────────────── Review ─────────────────────────────── */
+.review {
+  padding: 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+}
+
+.review__count {
+  margin-bottom: 12px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* Focus moves to these so the keys keep working and screen readers read
+   what appeared; the controls for the next step are right below. */
+.review__front:focus,
+.review__back:focus,
+.review__message:focus {
+  outline: none;
+}
+
+.review__code {
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  color: var(--text);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.review__language {
+  margin-top: 8px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-3);
+}
+
+.review__back {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  animation: lens-fade 160ms ease-out;
+}
+
+.review__concept {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.review__answer {
+  margin-top: 4px;
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  color: var(--text);
+}
+
+.review__section-title {
+  margin: 20px 0 4px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.review__section-body {
+  color: var(--text-2);
+}
+
+.review__question {
+  margin-top: 20px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-2);
+}
+
+.review__show {
+  width: 100%;
+  height: var(--h-composer);
+  margin-top: 8px;
+}
+
+.review__ratings {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Two lines: the answer, then when the card comes back after it. */
+.review__rate {
+  flex-direction: column;
+  gap: 0;
+  height: auto;
+  min-height: 48px;
+  padding: 4px 8px;
+}
+
+.review__rate-wait {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.review__keys {
+  margin-top: 8px;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-3);
+  text-align: center;
+}
+
+/* Nothing due, or no cards yet: a centred note, like the panel's empty state. */
+.review__message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0;
+  text-align: center;
+}
+
+.review__message-icon {
+  margin-bottom: 4px;
+  color: var(--text-3);
+}
+
+.review__message-title {
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: 500;
+}
+
+.review__message-body {
+  max-width: 360px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-2);
+}
+
+/* ─────────────────────────────── All cards ─────────────────────────────── */
+.flashcards__section {
+  margin-top: 40px;
+}
+
+.flashcards__section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.flashcards__section-header svg {
+  color: var(--text-2);
+}
+
+.flashcards__section-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.flashcards__section-count {
+  margin-left: 4px;
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.card-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.card-list__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.card-list__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.card-list__code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text);
+}
+
+.card-list__concept {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-3);
+}
+
+.card-list__due {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.card-list__delete {
+  flex-shrink: 0;
+  margin-right: -8px;
+}
+
+@media (max-width: 768px) {
+  .flashcards__inner {
+    padding: 16px 16px 48px;
+  }
+
+  .review {
+    padding: 16px;
+  }
+
+  /* Phones have no keys to press. */
+  .review__keys {
+    display: none;
+  }
+}
