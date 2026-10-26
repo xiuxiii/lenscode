@@ -37,11 +37,11 @@ Node 20.3+ is required for the API route and for `lens`; 22 is recommended.
 
 The tests sit next to the code they cover (`*.test.ts`) and need no API key: the AI provider is replaced by a fake `fetch`. They cover:
 
+- **The `lens` command:** options, `.env` parsing, output, AppleScript escaping and the setup text, plus the whole command run against a fake AI: arguments and stdin, `--json`, `--open`, `--popup`, a missing key and text that is too long. Also building and reading `#explain=` links.
 - **Language detection:** a corpus of 75 snippets across every supported language, plus file-name hints and the "don't flicker while typing" rules.
 - **Opening files:** secrets are never read, dependency/build folders, binaries and oversized files are left out, and the size and count caps.
 - **The API route:** request validation, the prompt sent upstream, and every error the panel can show (bad key, no credit, rate limits, timeouts, malformed or truncated answers). Also checks that the key never appears in an error or a log line.
 - **The browser side:** answer parsing and how `explainCode()` maps failures.
-- **The `lens` command:** options, `.env` parsing, output, AppleScript escaping and the setup text, plus the whole command run against a fake AI: arguments and stdin, `--json`, `--open`, `--popup`, a missing key and text that is too long. Also building and reading `#explain=` links.
 
 ### Adding your API key (DeepSeek)
 
@@ -124,6 +124,11 @@ All tokens live in the `:root` block of `src/index.css`; component CSS uses toke
 ## Project structure
 
 ```
+cli/                    The lens command; npm run build:cli bundles it into dist-cli/lens.mjs
+  main.ts               Reads the text, warns, calls the explain handler, prints the answer
+  args.ts, env.ts       Options; settings from the shell, .env.local and .env
+  format.ts, popup.ts   Terminal output; the macOS dialog (AppleScript)
+  setup.ts              --setup-mac and --setup-zsh
 server/                 Runs in Node only; never bundled for the browser
   vitePlugin.ts         Mounts POST /api/explain and /api/followup on the dev + preview servers
   explain/
@@ -131,11 +136,6 @@ server/                 Runs in Node only; never bundled for the browser
     prompt.ts           The prompts and context windowing (the only place they live)
     llmClient.ts        OpenAI-compatible chat-completions call + error mapping
     config.ts           LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
-cli/                    The lens command; npm run build:cli bundles it into dist-cli/lens.mjs
-  main.ts               Reads the text, warns, calls the explain handler, prints the answer
-  args.ts, env.ts       Options; settings from the shell, .env.local and .env
-  format.ts, popup.ts   Terminal output; the macOS dialog (AppleScript)
-  setup.ts              --setup-mac and --setup-zsh
 src/
   components/
     AppShell/           Layout grid, state wiring, panel resizer, mobile drawer + bottom sheet
@@ -149,9 +149,9 @@ src/
       ExplanationSection, RelatedConcepts
   hooks/
     useExplanation.ts   Reducer-based state machine (idle → loading → loaded | error) with cancellation
+    useDeepLink.ts      Explains the text in an #explain= link (lens --open)
     useWorkspace.ts     The project: name, files (by path), active file, open/add/close
     useSessionPersistence.ts  Autosaves the workspace and history (debounced, flushed on page hide)
-    useDeepLink.ts      Explains the text in an #explain= link (lens --open)
   services/
     explanationService.ts       explainCode() — the only door between UI and AI
     parseExplanation.ts         Validates answers (shared with the server)
@@ -159,10 +159,10 @@ src/
     starterFiles.ts         The tutorial project (a guide plus practice files)
     languages.ts            Supported languages, colours and one-line beginner descriptions
   lib/
+    deepLink.ts             Builds and reads #explain= links
     detectLanguage.ts       Automatic language detection (offline, runs on every edit)
     importFiles.ts          Reads opened / dropped files and folders, with safety filtering
     sessionStore.ts         Saves / restores the project and history in this browser (IndexedDB)
-    deepLink.ts             Builds and reads #explain= links
   types/
     explanation.ts          Explanation, ExplanationRequest, ExplanationError
     workspace.ts            WorkspaceFile, CodeSelection, LanguageId
