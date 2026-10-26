@@ -28,3 +28,4 @@ dist-cli
 *.njsproj
 *.sln
 *.sw?
+.vercel
