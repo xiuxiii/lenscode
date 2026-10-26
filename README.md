@@ -259,14 +259,16 @@ Upstream failures come back as readable messages in the panel: a rejected key ("
 
 ### Deploying
 
-The dev and preview servers host the routes. Static hosting of `dist/` alone does not, so in production `/api/explain` and `/api/followup` need a home. `createExplainHandler()` and `createFollowUpHandler()` each take a Web-standard `Request` and return a `Response`, so on a `fetch`-style serverless runtime (Vercel, Netlify, Cloudflare) it is a few lines. The exact export shape depends on the host; this sketch is untested on any of them:
+The dev and preview servers host the routes. Static hosting of `dist/` alone does not, so in production `/api/explain` and `/api/followup` need a home.
 
-```ts
-import { readLlmConfig } from '../server/explain/config.ts'
-import { createExplainHandler } from '../server/explain/handler.ts'
-const handle = createExplainHandler({ config: readLlmConfig(process.env) })
-export const POST = (request: Request) => handle(request)
-```
+**Vercel** is set up: `api/explain.ts` and `api/followup.ts` wrap `createExplainHandler()` and `createFollowUpHandler()` as Vercel Functions, and `vercel.json` pins the Vite framework preset. To deploy:
+
+1. Import the repository at [vercel.com/new](https://vercel.com/new). The defaults (Vite, `npm run build`, output `dist`) are correct.
+2. In the project's **Settings → Environment Variables**, add `LLM_API_KEY` (and any of the optional `LLM_*` values) for Production and Preview. Redeploy after changing them.
+
+`api/tsconfig.json` turns on `rewriteRelativeImportExtensions`, so the `.ts` imports in `server/` become `.js` when Vercel compiles the functions. Without it the functions fail at runtime with `ERR_MODULE_NOT_FOUND`.
+
+On another `fetch`-style host (Netlify, Cloudflare), the same two handlers take a Web-standard `Request` and return a `Response`; only the export shape changes.
 
 Set `LLM_API_KEY` in the host's secret settings, not in a file. If the API is served from a different origin than the page, set `VITE_EXPLANATION_API_URL` to its URL at build time. Follow-ups go to the same URL with its final `/explain` replaced by `/followup` (or `/followup` appended if it has none).
 
