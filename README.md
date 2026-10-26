@@ -72,7 +72,7 @@ lens < script.sh                # explain a file (up to 8,000 characters)
 
 Options go before the text (`lens git push --force` explains all three words):
 
-- `--open` opens the text in LensCode in your browser (see below), at `LENSCODE_URL` (default `http://localhost:5173`). LensCode must be running (`npm run dev`); `lens` says so if it isn't.
+- `--open` opens the text in LensCode in your browser (see below), at `LENSCODE_URL` (default `http://localhost:5173`, where `npm run dev` serves it; set it to your Vercel address to use the deployed app instead). `lens` says so if nothing answers there.
 - `--popup` shows the explanation in a macOS dialog, warnings first, with **Open in LensCode** and **OK**. On other systems it prints instead.
 - `--json` prints the explanation as JSON; warnings go to stderr.
 - `--setup-mac` and `--setup-zsh` print the setup steps below; `--help` and `--version`.
