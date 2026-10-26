@@ -266,6 +266,12 @@ describe('detectLanguage: options and edge cases', () => {
     const tail = '\nconsole.log(1);'.repeat(10_000)
     expect(detectLanguage(python + tail)).toBe('python')
   })
+
+  it('stays quick on a long line with no spaces, like minified code', () => {
+    const start = performance.now()
+    detectLanguage('x'.repeat(8_000))
+    expect(performance.now() - start).toBeLessThan(1_000)
+  })
 })
 
 describe('scoreLanguages', () => {

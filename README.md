@@ -17,6 +17,8 @@ PASTE CODE → SELECT CODE → EXPLAIN → READ EXPLANATION
 5. The explanation panel on the right shows what it is, the technical definition, what it does in this code, why it is here, and related concepts to learn next. Risky commands (`rm -rf`, `curl … | sh`, `sudo`, force-pushes, `reset --hard`, `DROP TABLE` and the like) also get a fixed warning from the app itself (`src/lib/riskyCommands.ts`), so nothing written in the file, and nothing the AI says, can talk the risk away.
 6. Click a related concept to explain that next, or type a question into **Ask a follow-up…** under the explanation ("why not just…?", "what does that word mean?"). Answers appear under the explanation and remember the earlier questions in the thread. The sidebar keeps a short history of what you have explained.
 
+Outside the app, the `lens` command explains code and commands in the terminal, and can be put on a keyboard shortcut on a Mac, in zsh and in VS Code (see [From the terminal and other apps](#from-the-terminal-and-other-apps)).
+
 ## Running it
 
 ```bash
@@ -26,14 +28,16 @@ npm run build      # typecheck + production build into dist/
 npm run preview    # serve dist/ (including /api/explain)
 npm run lint
 npm test           # unit tests (Vitest), about a second; npm run test:watch to re-run on save
+npm run build:cli  # the lens command, into dist-cli/ (see "From the terminal and other apps")
 ```
 
-Node 20.3+ is required for the API route; 22 is recommended.
+Node 20.3+ is required for the API route and for `lens`; 22 is recommended.
 
 ### Tests
 
 The tests sit next to the code they cover (`*.test.ts`) and need no API key: the AI provider is replaced by a fake `fetch`. They cover:
 
+- **The `lens` command:** options, `.env` parsing, output, AppleScript escaping and the setup text, plus the whole command run against a fake AI: arguments and stdin, `--json`, `--open`, `--popup`, a missing key and text that is too long. Also building and reading `#explain=` links.
 - **Language detection:** a corpus of 75 snippets across every supported language, plus file-name hints and the "don't flicker while typing" rules.
 - **Opening files:** secrets are never read, dependency/build folders, binaries and oversized files are left out, and the size and count caps.
 - **The API route:** request validation, the prompt sent upstream, and every error the panel can show (bad key, no credit, rate limits, timeouts, malformed or truncated answers). Also checks that the key never appears in an error or a log line.
@@ -48,6 +52,56 @@ npm run dev
 ```
 
 Without a key the app still opens, but **Explain** shows "No LLM_API_KEY is configured" with instructions. `.env.local` is gitignored.
+
+## From the terminal and other apps
+
+Highlight a command in Terminal, VS Code or Claude Code and have it explained, without opening the app first.
+
+### The `lens` command
+
+```bash
+npm run build:cli && npm link   # once: builds dist-cli/lens.mjs and installs `lens`
+lens 'git push --force'         # explain a command or a piece of code
+pbpaste | lens                  # explain what you copied (macOS)
+lens < script.sh                # explain a file (up to 8,000 characters)
+```
+
+`lens` prints the app's risky-command warnings first (decided locally, so they show even if the AI call fails), then the title, the plain answer, **In this code**, **Why it's here** and related concepts. It runs the web app's own engine (`createExplainHandler`: same prompt, same answer checks) with the whole text as the selection, and reads `LLM_API_KEY` from your shell or from `.env.local` / `.env` in the LensCode folder, so it works from any directory. Run `npm run build:cli` again after pulling changes.
+
+`lens` never runs the text it is given, but your shell can before `lens` sees it: inside double quotes, `$(…)` and backticks still run. Use single quotes, or pipe the text in.
+
+Options go before the text (`lens git push --force` explains all three words):
+
+- `--open` opens the text in LensCode in your browser (see below), at `LENSCODE_URL` (default `http://localhost:5173`, where `npm run dev` serves it; set it to your Vercel address to use the deployed app instead). `lens` says so if nothing answers there.
+- `--popup` shows the explanation in a macOS dialog, warnings first, with **Open in LensCode** and **OK**. On other systems it prints instead.
+- `--json` prints the explanation as JSON; warnings go to stderr.
+- `--setup-mac` and `--setup-zsh` print the setup steps below; `--help` and `--version`.
+
+Colour is used only on a terminal, and never with `NO_COLOR` set.
+
+### Opening LensCode with text
+
+`http://localhost:5173/#explain=<URL-encoded text>`, the link `--open` builds, explains that text in the app (`src/hooks/useDeepLink.ts`). With a session open, the text is added to it as a new file (`snippet`, then `snippet-2`, …); with none, a new session starts with it. It is explained straight away, as if all of it were selected, and the `#explain=` part is then removed, so a reload doesn't repeat it. Text is cut to 8,000 characters. It stays after the `#`, which browsers never send to a server.
+
+### In other apps
+
+- **macOS (Terminal and most apps):** `lens --setup-mac` prints the steps for a Shortcut that receives the highlighted text through the Services menu and runs `lens --popup` (or `--open`) on it, with the exact command to paste. The command names Node and the CLI by their full paths, because Shortcuts and Services don't load your shell's PATH. The last step gives it a keyboard shortcut in **System Settings → Keyboard → Keyboard Shortcuts → Services**.
+- **zsh:** `lens --setup-zsh >> ~/.zshrc` adds **Ctrl+X Ctrl+L**, which explains the command you are typing without running it and leaves it on the line.
+- **Claude Code:** run `lens` as a shell command from the prompt: `! lens 'npm run build'`. The explanation appears in the conversation, and Claude sees it too. For text in Claude's reply, copy it and run `! pbpaste | lens`.
+- **VS Code:** add this to `keybindings.json` (**Preferences: Open Keyboard Shortcuts (JSON)**). With code selected, Ctrl+Alt+L explains it in the terminal panel:
+
+  ```jsonc
+  {
+    "key": "ctrl+alt+l",
+    "command": "workbench.action.terminal.sendSequence",
+    "args": { "text": "\u0005\u0015lens <<'LENSCODE_END'\n${selectedText}\nLENSCODE_END\n" },
+    "when": "editorHasSelection"
+  }
+  ```
+
+  It types into the terminal: Ctrl+E Ctrl+U (`\u0005\u0015`) clears anything half-typed there, then the selection goes to `lens` as a here-document. Because `'LENSCODE_END'` is quoted, the shell expands nothing inside it, so quotes, `$(…)` and backticks in the selection reach `lens` as plain text. The shorter `lens '${selectedText}'` is not safe: a `'` in the selection ends the quoting, and the shell can then run part of it. Limits: bash or zsh only (not PowerShell or cmd); the terminal must be at a prompt, since the keys go to whatever is running there; tabs in the selection set off the shell's completion and can change the text; and a selected line that is exactly `LENSCODE_END` would end the text early and run the lines after it.
+
+The macOS parts (`--popup`, opening the browser with `open`, the Shortcut steps) were written and unit-tested on Linux and have not been tried on a Mac yet. The VS Code keybinding was checked by typing the same keys into bash and zsh, not in VS Code itself. The zsh shortcut was tried in zsh 5.9.
 
 ## Stack
 
@@ -70,6 +124,11 @@ All tokens live in the `:root` block of `src/index.css`; component CSS uses toke
 ## Project structure
 
 ```
+cli/                    The lens command; npm run build:cli bundles it into dist-cli/lens.mjs
+  main.ts               Reads the text, warns, calls the explain handler, prints the answer
+  args.ts, env.ts       Options; settings from the shell, .env.local and .env
+  format.ts, popup.ts   Terminal output; the macOS dialog (AppleScript)
+  setup.ts              --setup-mac and --setup-zsh
 server/                 Runs in Node only; never bundled for the browser
   vitePlugin.ts         Mounts POST /api/explain and /api/followup on the dev + preview servers
   explain/
@@ -90,6 +149,7 @@ src/
       ExplanationSection, RelatedConcepts
   hooks/
     useExplanation.ts   Reducer-based state machine (idle → loading → loaded | error) with cancellation
+    useDeepLink.ts      Explains the text in an #explain= link (lens --open)
     useWorkspace.ts     The project: name, files (by path), active file, open/add/close
     useSessionPersistence.ts  Autosaves the workspace and history (debounced, flushed on page hide)
   services/
@@ -99,6 +159,7 @@ src/
     starterFiles.ts         The tutorial project (a guide plus practice files)
     languages.ts            Supported languages, colours and one-line beginner descriptions
   lib/
+    deepLink.ts             Builds and reads #explain= links
     detectLanguage.ts       Automatic language detection (offline, runs on every edit)
     importFiles.ts          Reads opened / dropped files and folders, with safety filtering
     sessionStore.ts         Saves / restores the project and history in this browser (IndexedDB)

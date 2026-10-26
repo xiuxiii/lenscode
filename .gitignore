@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist-cli
 *.local
 
 # Secrets — .env.example is the committed template
