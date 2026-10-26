@@ -17,6 +17,8 @@ export interface LlmConfig {
   model: string
   /** Give up on the upstream call after this long. Kept below the client's timeout. */
   timeoutMs: number
+  /** Most AI calls per day in this server process. 0 or absent: no limit. */
+  dailyLimit?: number
 }
 
 type Env = Record<string, string | undefined>
@@ -26,10 +28,12 @@ export function readLlmConfig(env: Env): LlmConfig | null {
   const apiKey = env.LLM_API_KEY?.trim()
   if (!apiKey) return null
   const timeout = Number(env.LLM_TIMEOUT_MS)
+  const dailyLimit = Number(env.LLM_DAILY_LIMIT)
   return {
     apiKey,
     baseUrl: (env.LLM_BASE_URL?.trim() || DEFAULT_LLM_BASE_URL).replace(/\/+$/, ''),
     model: env.LLM_MODEL?.trim() || DEFAULT_LLM_MODEL,
     timeoutMs: Number.isFinite(timeout) && timeout > 0 ? timeout : DEFAULT_TIMEOUT_MS,
+    dailyLimit: Number.isFinite(dailyLimit) && dailyLimit >= 1 ? Math.floor(dailyLimit) : 0,
   }
 }

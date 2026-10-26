@@ -35,8 +35,9 @@ Node 20.3+ is required for the API route; 22 is recommended.
 The tests sit next to the code they cover (`*.test.ts`) and need no API key: the AI provider is replaced by a fake `fetch`. They cover:
 
 - **Language detection:** a corpus of 75 snippets across every supported language, plus file-name hints and the "don't flicker while typing" rules.
-- **Opening files:** secrets are never read, dependency/build folders, binaries and oversized files are left out, and the size and count caps.
-- **The API route:** request validation, the prompt sent upstream, and every error the panel can show (bad key, no credit, rate limits, timeouts, malformed or truncated answers). Also checks that the key never appears in an error or a log line.
+- **Opening files:** secret and credential files are never read, dependency/build folders, binaries and oversized files are left out, and the size and count caps.
+- **Hiding secrets:** every kind of key, token and password `maskSecrets()` hides, the code it must leave alone (placeholders, `process.env.API_KEY`, `getToken()`), and that line numbers survive.
+- **The API route:** request validation, the prompt sent upstream, and every error the panel can show (bad key, no credit, rate limits, timeouts, malformed or truncated answers). Also checks that the key never appears in an error or a log line, that repeats come from the cache, and the daily limit.
 - **The browser side:** answer parsing and how `explainCode()` maps failures.
 
 ### Adding your API key (DeepSeek)
@@ -76,7 +77,7 @@ server/                 Runs in Node only; never bundled for the browser
     handler.ts          Request → validate → prompt → LLM → validated Explanation (or follow-up answer)
     prompt.ts           The prompts and context windowing (the only place they live)
     llmClient.ts        OpenAI-compatible chat-completions call + error mapping
-    config.ts           LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
+    config.ts           The LLM_* settings: key, base URL, model, timeout, daily limit
 src/
   components/
     AppShell/           Layout grid, state wiring, panel resizer, mobile drawer + bottom sheet
@@ -101,6 +102,7 @@ src/
   lib/
     detectLanguage.ts       Automatic language detection (offline, runs on every edit)
     importFiles.ts          Reads opened / dropped files and folders, with safety filtering
+    maskSecrets.ts          Hides API keys, passwords and tokens before code is sent to the AI
     sessionStore.ts         Saves / restores the project and history in this browser (IndexedDB)
   types/
     explanation.ts          Explanation, ExplanationRequest, ExplanationError
@@ -109,12 +111,12 @@ src/
 
 ## Opening your own code
 
-**Open folder** loads a whole project and replaces the current one. **Open files** adds individual files to it. Both also work by dragging onto the window. Files are read in the browser and never uploaded; only the code you choose to explain is sent to the AI, along with the lines around it.
+**Open folder** loads a whole project and replaces the current one. **Open files** adds individual files to it. Both also work by dragging onto the window. Files are read in the browser and never uploaded; only the code you choose to explain is sent to the AI, along with the lines around it, and any keys or passwords in it are replaced with `[hidden secret]` first (see [The backend route](#the-backend-route)).
 
 `src/lib/importFiles.ts` decides what gets opened, and the sidebar says what was left out and why:
 
 - **Not your code:** `node_modules`, `.git`, `dist`, `build`, `.next`, virtualenvs, `__pycache__`, `target` and similar folders are skipped. When dropped, they are not even walked.
-- **Secrets are never read:** `.env`, `.env.local` and other `.env.*` files, `.npmrc`, private keys (`*.pem`, `id_rsa`, …). Templates like `.env.example` are fine.
+- **Secrets are never read:** `.env`, `.env.local` and other `.env.*` files, `.npmrc`, private keys (`*.pem`, `id_rsa`, `*.ppk`, …), and credential files: AWS `credentials`, `.git-credentials`, `.pgpass`, `.htpasswd`, `*.tfvars`, `secrets.*`, `*.secret`, `credentials.json` and service-account JSON, `kubeconfig`, `.dockercfg`, `.docker/config.json`. Templates like `.env.example` or `secrets.example.yaml` are fine.
 - **Not text:** images, fonts, archives and executables by extension, plus anything containing NUL bytes.
 - **Too big:** files over 500 KB (the most one explanation can send), and more than 2,000 files or 25 MB in total.
 
@@ -223,10 +225,13 @@ Plus `id`, `selectedCode`, `language` and `kind` (a `ConceptKind`, validated but
 `server/` runs only in Node. `server/vitePlugin.ts` mounts `POST /api/explain` on the Vite dev and preview servers, so `npm run dev` is the whole backend locally.
 
 - **No key.** Without `LLM_API_KEY` the route answers `503` with code `not_configured`, and the panel says how to add one.
+- **Secrets stay private.** Before anything is sent, `src/lib/maskSecrets.ts` replaces secret-looking values with `[hidden secret]`, so `API_KEY = "sk-…"` goes out as `API_KEY = "[hidden secret]"`. It catches OpenAI, Anthropic, DeepSeek, AWS, GitHub, Slack, Google and Stripe keys, JWTs, bearer tokens, private key blocks, passwords inside URLs, and literal values given to names like `API_KEY`, `token`, `secret` or `password`. It leaves placeholders (`your-key-here`, `xxxx`, `<token>`) and lookups (`process.env.API_KEY`, `${TOKEN}`, `getToken()`) alone. `prompt.ts` applies it to the selection, the whole file before the excerpt is cut (line numbers stay exact) and every part of a follow-up, and tells the model what the marker means. It errs towards hiding, so a harmless value is occasionally hidden too. Being on the server, it covers the web app and anything else that calls the handlers.
 - **Prompt.** `server/explain/prompt.ts` sends the selection plus a window of ±40 lines around it (capped at 12,000 characters), with the selected lines marked. The selection and file are framed as data: the model is told never to follow instructions found inside them (a file can contain text aimed at an AI) and never to call a destructive command safe. When there is no range (a related-concept click), it sends the top of the file and tells the model the selection may be a concept name. The model is asked for the canonical field names, with identifiers in double quotes, which `renderProse()` already turns into inline code chips.
 - **Model call.** `server/explain/llmClient.ts` POSTs to `{LLM_BASE_URL}/chat/completions` with `response_format: { type: 'json_object' }`, a 40 s timeout, and the browser's abort signal, so a superseded selection cancels the upstream call instead of spending tokens.
 - **Validation.** `handler.ts` rejects malformed requests with a 400, extracts the JSON object even if a model wraps it in a fence, and runs the same `parseExplanationResponse()` the browser uses, so a bad answer becomes a clean `invalid_response` error.
 - **Follow-ups.** `POST /api/followup` takes a `FollowUpRequest`: the original `ExplanationRequest`, the explanation the reader saw, up to 6 earlier question/answer pairs (the route accepts 10), and the new question (up to 2,000 characters). `buildFollowUpMessages()` sends the same file context as the explanation, then the thread as alternating user/assistant turns, and asks for `{ "answer": "…" }`: plain text, paragraphs separated by a blank line, identifiers in double quotes. Errors use the same codes as `/api/explain`. Threads live only in the panel: a new explanation starts a fresh one, and they are not saved with Recent.
+- **Repeats are free.** `createExplainHandler()` keeps the last 200 explanations for an hour, keyed by a SHA-256 of the exact (masked) messages, so explaining the same code in the same context again skips the AI call and returns the saved answer with a new `id`. Only validated explanations are kept; follow-ups always ask the model.
+- **Daily limit.** With `LLM_DAILY_LIMIT` set, the server makes at most that many AI calls a day (explanations and follow-ups together; cache hits are free). After that it answers `429 rate_limited` with "LensCode's daily limit of N AI requests is used up (LLM_DAILY_LIMIT). It resets at midnight." The count is kept in memory per server process, so a restart resets it. On Vercel every function instance keeps its own count (and explanations and follow-ups are separate functions), so there it is a rough brake, not a cap: set a spending limit with your AI provider for that.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
@@ -234,6 +239,7 @@ Plus `id`, `selectedCode`, `language` and `kind` (a `ConceptKind`, validated but
 | `LLM_BASE_URL` | `https://api.deepseek.com` | Any OpenAI-compatible API, e.g. Ollama at `http://localhost:11434/v1`. |
 | `LLM_MODEL` | `deepseek-chat` | If DeepSeek has renamed its models, the panel says so; set the current name here. |
 | `LLM_TIMEOUT_MS` | `40000` | Kept below the browser's 45 s timeout so the server's clearer error wins. |
+| `LLM_DAILY_LIMIT` | no limit | Most AI requests per day for this server process; cached repeats don't count. Resets at midnight, server time. `0` also means no limit. |
 
 Upstream failures come back as readable messages in the panel: a rejected key ("Check LLM_API_KEY in .env.local"), no credit (HTTP 402), an unknown model ("Check LLM_MODEL"), rate limiting, timeouts, truncated or malformed answers. They are also logged in the dev-server terminal, without the key.
 

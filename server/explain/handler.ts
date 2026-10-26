@@ -7,6 +7,7 @@ import {
   ExplanationError,
   FOLLOW_UP_LIMITS,
   type ExplainedText,
+  type Explanation,
   type ExplanationRequest,
   type FollowUpRequest,
   type FollowUpTurn,
@@ -15,7 +16,7 @@ import {
 import type { LanguageId } from '../../src/types/workspace.ts'
 import type { LlmConfig } from './config.ts'
 import { ExplainRouteError, requestCompletion } from './llmClient.ts'
-import { buildFollowUpMessages, buildMessages } from './prompt.ts'
+import { buildFollowUpMessages, buildMessages, type ChatMessage } from './prompt.ts'
 
 /**
  * `POST /api/explain` — the backend half of `explainCode()`.
@@ -32,7 +33,14 @@ import { buildFollowUpMessages, buildMessages } from './prompt.ts'
  *
  * Errors are returned as `{ error: { code, message } }`, where `code` is an
  * `ExplanationErrorCode` the panel already knows how to present.
+ *
+ * To keep costs down, a repeat explanation is answered from an in-memory
+ * cache, and `LLM_DAILY_LIMIT` caps the AI calls made per day.
  */
+
+/** Repeat explanations kept per handler, and for how long. */
+const CACHE_ENTRIES = 200
+const CACHE_TTL_MS = 60 * 60 * 1000
 
 const MAX_SELECTION_CHARS = 8_000
 const MAX_SOURCE_CHARS = 500_000
@@ -179,10 +187,79 @@ function extractJson(text: string): unknown {
 }
 
 export interface ExplainHandlerOptions {
-  /** `null` when `LLM_API_KEY` is missing. */
+  /**
+   * `null` when `LLM_API_KEY` is missing. Handlers built from the same config
+   * share one count of AI calls against `dailyLimit`.
+   */
   config: LlmConfig | null
   /** Where to report upstream failures. Never receives the key. */
   log?: (message: string) => void
+}
+
+/** AI calls made today, per config: the explain and follow-up routes share one count. */
+const callsToday = new WeakMap<LlmConfig, { day: string; calls: number }>()
+
+/**
+ * Count one AI call against `LLM_DAILY_LIMIT`, or refuse it with a 429. The
+ * count lives in this process and starts again at midnight, server time.
+ */
+function countCall(config: LlmConfig) {
+  const limit = config.dailyLimit ?? 0
+  if (limit <= 0) return
+  const day = new Date().toDateString()
+  let usage = callsToday.get(config)
+  if (usage?.day !== day) {
+    usage = { day, calls: 0 }
+    callsToday.set(config, usage)
+  }
+  if (usage.calls >= limit) {
+    const requests = limit === 1 ? 'AI request' : 'AI requests'
+    throw new ExplainRouteError(
+      'rate_limited',
+      429,
+      `LensCode's daily limit of ${limit} ${requests} is used up (LLM_DAILY_LIMIT). It resets at midnight.`,
+    )
+  }
+  usage.calls++
+}
+
+/** Ask the model, counting the call against the daily limit. */
+function complete(config: LlmConfig, messages: ChatMessage[], signal: AbortSignal) {
+  countCall(config)
+  return requestCompletion(config, messages, signal)
+}
+
+/**
+ * A small in-memory cache. Entries expire after `ttlMs`; when it is full, the
+ * one used least recently is dropped.
+ */
+function createCache<T>(maxEntries: number, ttlMs: number) {
+  const entries = new Map<string, { value: T; expires: number }>()
+  return {
+    get(key: string): T | undefined {
+      const entry = entries.get(key)
+      if (!entry) return undefined
+      entries.delete(key)
+      if (entry.expires <= Date.now()) return undefined
+      entries.set(key, entry) // now the most recently used
+      return entry.value
+    },
+    set(key: string, value: T) {
+      entries.delete(key)
+      entries.set(key, { value, expires: Date.now() + ttlMs })
+      if (entries.size > maxEntries) {
+        const [oldest] = entries.keys()
+        entries.delete(oldest)
+      }
+    },
+  }
+}
+
+/** SHA-256 of the messages, as hex. Web Crypto, so it runs wherever `fetch` does. */
+async function hashMessages(messages: ChatMessage[]): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(messages))
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 /**
@@ -246,20 +323,38 @@ function readModelJson(content: string): unknown {
   }
 }
 
+/** What the model said about a selection, without one request's id and echo. */
+type ModelAnswer = Omit<Explanation, 'id' | 'selectedCode' | 'language'>
+
 export function createExplainHandler(options: ExplainHandlerOptions) {
+  // The same code in the same context gets the same answer, so a repeat is
+  // answered from memory: no AI call and no cost. The key is the exact
+  // messages the model would see, which are already masked.
+  const cache = createCache<ModelAnswer>(CACHE_ENTRIES, CACHE_TTL_MS)
+
   return createRoute(options, async (body, config, signal) => {
     const explanationRequest = readRequest(body)
-    const content = await requestCompletion(config, buildMessages(explanationRequest), signal)
+    const messages = buildMessages(explanationRequest)
+    const key = await hashMessages(messages)
+    const cached = cache.get(key)
+    // Parsed again for a fresh id and this request's own selection.
+    if (cached) return parseExplanationResponse(cached, explanationRequest)
+
+    const content = await complete(config, messages, signal)
     // Same validation the browser applies; reject here so a bad answer is
     // reported as the model's fault with a 502 rather than reaching the UI.
-    return parseExplanationResponse(readModelJson(content), explanationRequest)
+    const explanation = parseExplanationResponse(readModelJson(content), explanationRequest)
+    const { id: _id, selectedCode: _selectedCode, language: _language, ...answer } = explanation
+    cache.set(key, answer)
+    return explanation
   })
 }
 
+/** Follow-ups are not cached: each one continues a different conversation. */
 export function createFollowUpHandler(options: ExplainHandlerOptions) {
   return createRoute(options, async (body, config, signal) => {
     const followUp = readFollowUpRequest(body)
-    const content = await requestCompletion(config, buildFollowUpMessages(followUp), signal)
+    const content = await complete(config, buildFollowUpMessages(followUp), signal)
     return parseFollowUpAnswer(readModelJson(content))
   })
 }
